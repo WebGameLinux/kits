@@ -12,7 +12,7 @@ type ApplicationProps struct {
 	AppName           string
 	Version           string
 	ApkPath           string
-	CtrChan           chan bool
+	CtrChan           chan int
 }
 
 var defaultProps *ApplicationProps
@@ -49,8 +49,8 @@ func (this *ApplicationProps) GetProviders() []Contracts.Provider {
 func (this *ApplicationProps) initKeyValues() {
 	this.AppName = appName
 	this.Version = appVersionName
-	this.CtrChan = make(chan bool, 2)
-	this.ApkPath = reflect.TypeOf(this).PkgPath()
+	this.CtrChan = make(chan int, 2)
+	this.ApkPath = reflect.TypeOf(this).Elem().PkgPath()
 	this.ConfigFilesSuffix = []string{".yml", ".properties", ".ini"}
 }
 
@@ -89,11 +89,11 @@ func (this *ApplicationProps) Get(key string) interface{} {
 		fallthrough
 	case "config_files_suffix":
 		return this.ConfigFilesSuffix
-	case "CtrChan":
+	case "appCtrlChan":
 		fallthrough
-	case "ctrchan":
+	case "appctrlchan":
 		fallthrough
-	case "ctr_chan":
+	case "app_ctrl_chan":
 		return this.CtrChan
 
 	}
@@ -113,6 +113,6 @@ func (this *ApplicationProps) Foreach(each func(key string, value interface{}) b
 func (this *ApplicationProps) keys() []string {
 	return []string{
 		"Providers", "AppName", "Version",
-		"ApkPath", "ConfigFilesSuffix","CtrChan",
+		"ApkPath", "ConfigFilesSuffix","appCtrlChan",
 	}
 }

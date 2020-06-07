@@ -44,11 +44,8 @@ func ClassOf(obj interface{}, clazz *ClazzImpl) bool {
 		return false
 	}
 	t := reflect.TypeOf(obj)
-	if t.Kind() != reflect.Struct {
-		if t.Elem().Kind() != reflect.Struct {
-			return false
-		}
-		t = t.Elem()
+	if t.Kind() != reflect.Interface && t.Kind() != reflect.Ptr {
+		return false
 	}
 	if class, ok := obj.(*ClazzImpl); ok {
 		clazz.Name = class.Name
@@ -56,17 +53,20 @@ func ClassOf(obj interface{}, clazz *ClazzImpl) bool {
 		clazz.FactoryFunc = class.FactoryFunc
 		return true
 	}
-	if t.Implements(reflect.TypeOf(new(Contracts.FactoryInterface))) {
+
+	if t.Implements(reflect.TypeOf(new(Contracts.FactoryInterface)).Elem()) {
 		if factory, ok := obj.(Contracts.FactoryInterface); ok {
 			clazz.FactoryFunc = factory.Factory
 		}
 	}
-	if t.Implements(reflect.TypeOf(new(Contracts.ConstructorInterface))) {
+
+	if t.Implements(reflect.TypeOf(new(Contracts.ConstructorInterface)).Elem()) {
 		if factory, ok := obj.(Contracts.ConstructorInterface); ok {
 			clazz.ConstructorFunc = factory.Constructor
 		}
 	}
-	if t.Implements(reflect.TypeOf(new(fmt.Stringer))) {
+
+	if t.Implements(reflect.TypeOf(new(fmt.Stringer)).Elem()) {
 		if factory, ok := obj.(fmt.Stringer); ok {
 			clazz.Name = factory.String()
 		}

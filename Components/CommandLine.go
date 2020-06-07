@@ -115,5 +115,5 @@ func (this *CommandLineArgsProviderImpl) Constructor() interface{} {
 }
 
 func (this *CommandLineArgsProviderImpl) String() string {
-	return this.GetClazz().String()
+	return "CommandLine"
 }
