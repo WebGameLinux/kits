@@ -2,5 +2,5 @@
 
 简介 :
 
-![info](./images/WechatIMG4.png)
+![info](./images/WechatIMG4.jpg)
 
