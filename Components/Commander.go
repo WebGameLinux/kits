@@ -28,7 +28,7 @@ func (this *CommanderImpl) initHelp() {
 }
 
 func (this *CommanderImpl) Exec() int {
-	panic("implement me")
+   return 0
 }
 
 func (this *CommanderImpl) Argc() int {

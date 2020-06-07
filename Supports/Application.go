@@ -235,16 +235,7 @@ func (this *ApplicationImpl) InitRegisters() {
 		if this.getInitCount(coreRegistersInitCount) > 0 {
 				return
 		}
-		if items, ok := this.properties.Load(registersPropKey); ok {
-				registers, ok := items.([]Contracts.RegisterInterface)
-				if !ok {
-						return
-				}
-				var register Contracts.RegisterInterface
-				for _, register = range registers {
-						this.reg(register)
-				}
-		}
+		this.registers.Foreach(this.foreachRegister())
 }
 
 // 别名
@@ -257,17 +248,7 @@ func (this *ApplicationImpl) InitBoots() {
 		if this.getInitCount(coreBootInitCount) > 0 {
 				return
 		}
-		if items, ok := this.properties.Load(bootsPropKey); ok {
-				boots, ok := items.([]Contracts.BootInterface)
-				if !ok {
-						return
-				}
-				var boot Contracts.BootInterface
-				for _, boot = range boots {
-						this.boot(boot)
-				}
-
-		}
+		this.boots.Foreach(this.foreachBoot())
 }
 
 // 载入引导逻辑
@@ -524,8 +505,8 @@ func (this *ApplicationImpl) StarUp() {
 								close(ch)
 								return
 						}
-				case <-time.NewTicker(100*time.Millisecond).C:
-						fmt.Println("check up!")
+						this.GetProfile("")
+				case <-time.NewTicker(3 * time.Second).C:
 				}
 		}
 }
