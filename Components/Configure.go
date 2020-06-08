@@ -8,6 +8,9 @@ import (
 
 // 获取接口
 type GetterInterface interface {
+		Keys() []string
+		Exists(string) bool
+		Values() []interface{}
 		Int(string, ...int) int
 		Bool(string, ...bool) bool
 		Get(string, ...string) string
@@ -18,13 +21,22 @@ type GetterInterface interface {
 		Any(string, ...interface{}) interface{}
 		Map(string, ...*map[string]interface{}) *map[string]interface{}
 		HashMap(string, ...*HashMapperStrKeyEntry) *HashMapperStrKeyEntry
-		Exists(string) bool
 }
 
+// 设置接口
 type SetterInterface interface {
 		Set(string, interface{})
 		Add(string, interface{})
 		Remove(string)
+}
+
+// 配置加载器
+type ConfigureLoader func(configuration Configuration)
+
+// 配置
+type Configuration interface {
+		GetterInterface
+		SetterInterface
 }
 
 // 配置服务
@@ -69,48 +81,56 @@ func (this *ConfigureProviderImpl) GetSupportBean() Contracts.SupportBean {
 }
 
 func (this *ConfigureProviderImpl) Int(key string, defaults ...int) int {
-		return this.instance.Int(key, defaults...)
+		return this.config().Int(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Bool(key string, defaults ...bool) bool {
-		return this.instance.Bool(key, defaults...)
+		return this.config().Bool(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Get(key string, defaults ...string) string {
-		return this.instance.Get(key, defaults...)
+		return this.config().Get(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) IntArray(key string, defaults ...[]int) []int {
-		return this.instance.IntArray(key, defaults...)
+		return this.config().IntArray(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) FloatN(key string, defaults ...float64) float64 {
-		return this.instance.FloatN(key, defaults...)
+		return this.config().FloatN(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Float(key string, defaults ...float32) float32 {
-		return this.instance.Float(key, defaults...)
+		return this.config().Float(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Strings(key string, defaults ...[]string) []string {
-		return this.instance.Strings(key, defaults...)
+		return this.config().Strings(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Any(key string, defaults ...interface{}) interface{} {
-		return this.instance.Any(key, defaults...)
+		return this.config().Any(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Map(key string, defaults ...*map[string]interface{}) *map[string]interface{} {
-		return this.instance.Map(key, defaults...)
+		return this.config().Map(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) HashMap(key string, defaults ...*HashMapperStrKeyEntry) *HashMapperStrKeyEntry {
-		return this.instance.HashMap(key, defaults...)
+		return this.config().HashMap(key, defaults...)
 }
 
 func (this *ConfigureProviderImpl) Factory(app Contracts.ApplicationContainer) interface{} {
 		this.Init(app)
-		return this
+		return this.instance
+}
+
+func (this *ConfigureProviderImpl) Keys() []string {
+		return this.config().Keys()
+}
+
+func (this *ConfigureProviderImpl) Values() []interface{} {
+		return this.config().Values()
 }
 
 func (this *ConfigureProviderImpl) Constructor() interface{} {
@@ -124,14 +144,30 @@ func (this *ConfigureProviderImpl) String() string {
 func (this *ConfigureProviderImpl) Register() {
 		this.app.Bind(this.String(), this)
 		this.app.Bind("configure", this.instance)
+		this.app.Alias("configure", "Configuration")
+		this.app.Singleton("config", this.Factory)
 }
 
 func (this *ConfigureProviderImpl) Boot() {
-
+		configure := this.app.Get("Configuration")
+		if cnf, ok := configure.(Configuration); ok {
+				fn := this.app.Get("ConfigureLoader")
+				if loader, ok := fn.(ConfigureLoader); ok {
+						loader(cnf)
+				}
+		}
 }
 
 func (this *ConfigureProviderImpl) Exists(key string) bool {
 		return this.instance.Exists(key)
+}
+
+func (this *ConfigureProviderImpl) config() Configuration {
+		var configure = this.app.Get("config")
+		if cnf, ok := configure.(Configuration); ok {
+				return cnf
+		}
+		return nil
 }
 
 func ConfigureOf() GetterInterface {
@@ -245,4 +281,24 @@ func (this *Configure) Add(key string, value interface{}) {
 
 func (this *Configure) Remove(key string) {
 		this.Mapper.Delete(key)
+}
+
+func (this *Configure) Keys() []string {
+		var keys []string
+		this.Mapper.Range(func(key, value interface{}) bool {
+				if str, ok := key.(string); ok {
+						keys = append(keys, str)
+				}
+				return true
+		})
+		return keys
+}
+
+func (this *Configure) Values() []interface{} {
+		var values []interface{}
+		this.Mapper.Range(func(key, value interface{}) bool {
+				values = append(values, value)
+				return true
+		})
+		return values
 }

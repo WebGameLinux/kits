@@ -372,9 +372,6 @@ func (this *ApplicationImpl) Bind(id string, object interface{}) {
 		if object == nil || id == "" {
 				return
 		}
-		if this.container.Exists(id) {
-				return
-		}
 		this.container.Bind(id, object)
 }
 
