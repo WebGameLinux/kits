@@ -2,7 +2,10 @@ package Components
 
 import (
 		"fmt"
+		"github.com/tietang/props/kvs"
 		"github.com/webGameLinux/kits/Contracts"
+		"io"
+		"strings"
 		"sync"
 )
 
@@ -31,7 +34,7 @@ type SetterInterface interface {
 }
 
 // 配置加载器
-type ConfigureLoader func(configuration Configuration)
+type ConfigureLoader func(config Configuration, app Contracts.ApplicationContainer)
 
 // 配置
 type Configuration interface {
@@ -146,6 +149,7 @@ func (this *ConfigureProviderImpl) Register() {
 		this.app.Bind("configure", this.instance)
 		this.app.Alias("configure", "Configuration")
 		this.app.Singleton("config", this.Factory)
+		this.app.Bind("ConfigureLoader", ConfigLoader)
 }
 
 func (this *ConfigureProviderImpl) Boot() {
@@ -153,7 +157,7 @@ func (this *ConfigureProviderImpl) Boot() {
 		if cnf, ok := configure.(Configuration); ok {
 				fn := this.app.Get("ConfigureLoader")
 				if loader, ok := fn.(ConfigureLoader); ok {
-						loader(cnf)
+						loader(cnf, this.app)
 				}
 		}
 }
@@ -170,15 +174,15 @@ func (this *ConfigureProviderImpl) config() Configuration {
 		return nil
 }
 
-func ConfigureOf() GetterInterface {
-		var configure = new(Configure)
-		return configure
-}
-
 func ConfigureProviderOf() ConfigureProvider {
 		var provider = new(ConfigureProviderImpl)
 		provider.Name = "ConfigureProvider"
 		return provider
+}
+
+func ConfigureOf() GetterInterface {
+		var configure = new(Configure)
+		return configure
 }
 
 func (this *Configure) Int(key string, defaults ...int) int {
@@ -198,9 +202,14 @@ func (this *Configure) Bool(key string, defaults ...bool) bool {
 				defaults = append(defaults, false)
 		}
 		v := this.Any(key, defaults[0])
-		// todo string to bool
 		if n, ok := v.(bool); ok {
 				return n
+		}
+		if v != nil {
+				b := BooleanOf(v)
+				if !b.Invalid() {
+						return b.ValueOf()
+				}
 		}
 		return defaults[0]
 }
@@ -221,19 +230,88 @@ func (this *Configure) Get(key string, defaults ...string) string {
 }
 
 func (this *Configure) IntArray(key string, defaults ...[]int) []int {
-		panic("implement me")
+		if len(defaults) == 0 {
+				defaults = append(defaults, []int{})
+		}
+		v := this.Any(key, defaults[0])
+		if b, ok := v.([]int); ok {
+				return b
+		}
+		if b, ok := v.(*[]int); ok {
+				return *b
+		}
+		bv := IntArray(v)
+		if !bv.Invalid() {
+				return bv.ValueOf()
+		}
+		return defaults[0]
 }
 
 func (this *Configure) FloatN(key string, defaults ...float64) float64 {
-		panic("implement me")
+		if len(defaults) == 0 {
+				defaults = append(defaults, 0)
+		}
+		v := this.Any(key)
+		if v == nil {
+				return defaults[0]
+		}
+		if str, ok := v.(string); ok {
+				if !IsNumber(str) {
+						return defaults[0]
+				}
+				return NumberOf(str).FloatN()
+		}
+		if num, ok := v.(float64); ok {
+				return num
+		}
+		return defaults[0]
 }
 
 func (this *Configure) Float(key string, defaults ...float32) float32 {
-		panic("implement me")
+		if len(defaults) == 0 {
+				defaults = append(defaults, 0)
+		}
+		v := this.Any(key)
+		if v == nil {
+				return defaults[0]
+		}
+		if str, ok := v.(string); ok {
+				if !IsNumber(str) {
+						return defaults[0]
+				}
+				return NumberOf(str).Float()
+		}
+		if num, ok := v.(float32); ok {
+				return num
+		}
+		return defaults[0]
 }
 
 func (this *Configure) Strings(key string, defaults ...[]string) []string {
-		panic("implement me")
+		if len(defaults) == 0 {
+				defaults = append(defaults, []string{})
+		}
+		v := this.Any(key)
+		if v == nil {
+				return defaults[0]
+		}
+		if str, ok := v.(string); ok {
+				if strings.Contains(str, ",") {
+						return strings.SplitN(str, ",", -1)
+				}
+				return []string{str}
+		}
+		if strArr, ok := v.([]string); ok {
+				return strArr
+		}
+		if strArr, ok := v.(*[]string); ok {
+				return *strArr
+		}
+		arr := ArrayString(Array(v))
+		if len(arr) != 0 {
+				return arr
+		}
+		return defaults[0]
 }
 
 func (this *Configure) Any(key string, defaults ...interface{}) interface{} {
@@ -247,7 +325,14 @@ func (this *Configure) Any(key string, defaults ...interface{}) interface{} {
 }
 
 func (this *Configure) Map(key string, defaults ...*map[string]interface{}) *map[string]interface{} {
-		panic("implement me")
+		if len(defaults) == 0 {
+				defaults = append(defaults, new(map[string]interface{}))
+		}
+		v := this.Any(key, defaults[0])
+		if h, ok := v.(*map[string]interface{}); ok {
+				return h
+		}
+		return nil
 }
 
 func (this *Configure) HashMap(key string, defaults ...*HashMapperStrKeyEntry) *HashMapperStrKeyEntry {
@@ -257,6 +342,13 @@ func (this *Configure) HashMap(key string, defaults ...*HashMapperStrKeyEntry) *
 		v := this.Any(key, defaults[0])
 		if h, ok := v.(*HashMapperStrKeyEntry); ok {
 				return h
+		}
+		if h, ok := v.(*map[string]interface{}); ok {
+				hash := HashMapperStrKeyEntryOf()
+				for k, value := range *h {
+						hash.Set(k, value)
+				}
+				return hash
 		}
 		return nil
 }
@@ -301,4 +393,49 @@ func (this *Configure) Values() []interface{} {
 				return true
 		})
 		return values
+}
+
+// 获取配置读取方式
+func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
+		// 文件读取器
+		if files, ok := app.GetProfile("AppFile.Properties").([]string); ok {
+				for _, fs := range files {
+						scope := GetScope(fs)
+						if prop, err := kvs.ReadProperties(GetFileReader(fs)); err == nil {
+								for k, v := range prop.Values {
+										config.Add(scope+k, v)
+								}
+						}
+				}
+		}
+		// 读取器
+		if reader, ok := app.GetProfile("AppFile.Properties.Reader").(io.Reader); ok {
+				if prop, err := kvs.ReadProperties(reader); err == nil {
+						for k, v := range prop.Values {
+								config.Add(k, v)
+						}
+				}
+		}
+}
+
+// 获取作用域
+func GetScope(name string) string {
+		if strings.Contains(name, "/") {
+				strArr := strings.SplitN(name, "/", -1)
+				name = strArr[len(strArr)-1]
+		}
+		if strings.Contains(name, `\`) {
+				strArr := strings.SplitN(name, `\`, -1)
+				name = strArr[len(strArr)-1]
+		}
+		if strings.Contains(name, ".") {
+				strArr := strings.SplitN(name, ".", -1)
+				num := len(strArr)
+				if num >= 2 {
+						name = strArr[num-2]
+				} else {
+						name = strArr[0]
+				}
+		}
+		return name
 }
