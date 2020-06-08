@@ -1,11 +1,10 @@
 package main
 
 import (
-		. "github.com/webGameLinux/kits/Supports"
+		. "github.com/webGameLinux/kits/Functions"
 )
 
 func main() {
-	var app = App()
-	app.Alias(AppContainer, "container")
-	app.StarUp()
+		var app = AppContainer()
+		app.StarUp()
 }
