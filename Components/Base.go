@@ -7,7 +7,19 @@ import (
 		"io"
 		"io/ioutil"
 		"os"
+		"path/filepath"
 		"unicode"
+)
+
+const (
+		FileNotExists       = -1
+		FilePermission      = -2
+		FileExistsError     = -3
+		TimeOutError        = -4
+		FileStateOtherError = -5
+		IsDirFlag           = 2
+		FileFlag            = 1
+		IsEmptyFileFlag     = 10
 )
 
 func BeanOf() *Contracts.SupportBean {
@@ -73,3 +85,97 @@ func IsNumber(str string, formatter ...func(string) string) bool {
 		return true
 }
 
+func IsFile(fs string) int {
+		state, err := GetFileState(fs)
+		if err != nil {
+				if os.IsNotExist(err) {
+						return FileNotExists
+				}
+				if os.IsPermission(err) {
+						return FilePermission
+				}
+				if os.IsExist(err) {
+						return FileExistsError
+				}
+				if os.IsTimeout(err) {
+						return TimeOutError
+				}
+				return FileStateOtherError
+		}
+		if state.IsDir() {
+				return IsDirFlag
+		}
+		if state.Size() > 0 {
+				return FileFlag
+		}
+		return IsEmptyFileFlag
+}
+
+func IsEmptyFile(fs string) bool {
+		if flag := IsFile(fs); flag == IsEmptyFileFlag {
+				return true
+		}
+		return false
+}
+
+func IsDir(fs string) bool {
+		if flag := IsFile(fs); flag == IsDirFlag {
+				return true
+		}
+		return false
+}
+
+func IsEmptyDir(dir string) bool {
+		if !IsDir(dir) {
+				return false
+		}
+		if size, err := GetDirSize(dir); err == nil && size > 0 {
+				return false
+		}
+		return true
+}
+
+func GetDirSize(dir string) (int64, error) {
+		var size int64
+		err := filepath.Walk(dir, func(_ string, info os.FileInfo, err error) error {
+				if !info.IsDir() {
+						size += info.Size()
+				}
+				return err
+		})
+		return size, err
+}
+
+// 构造文件组
+func MakeFiles(fs string, filter ...func(fs string) bool) []string {
+		flag := IsFile(fs)
+		if flag <= 0 {
+				return []string{}
+		}
+		if flag == IsDirFlag {
+				var files []string
+				err := filepath.Walk(fs, func(path string, info os.FileInfo, err error) error {
+						if info.IsDir() {
+								return err
+						}
+						file, e := filepath.Abs(path)
+						if e != nil {
+								return err
+						}
+						if len(filter) > 0 {
+								for _, fn := range filter {
+										if !fn(file) {
+												return err
+										}
+								}
+						}
+						files = append(files, file)
+						return err
+				})
+				if err == nil {
+						return files
+				}
+				return []string{}
+		}
+		return []string{fs}
+}

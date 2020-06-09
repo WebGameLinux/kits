@@ -4,6 +4,7 @@ import (
 		"fmt"
 		"github.com/tietang/props/kvs"
 		"github.com/webGameLinux/kits/Contracts"
+		"github.com/webGameLinux/kits/Libs"
 		"io"
 		"strings"
 		"sync"
@@ -24,6 +25,9 @@ type GetterInterface interface {
 		Any(string, ...interface{}) interface{}
 		Map(string, ...*map[string]interface{}) *map[string]interface{}
 		HashMap(string, ...*HashMapperStrKeyEntry) *HashMapperStrKeyEntry
+		Foreach(func(k, v interface{}) bool)
+		Search(func(k, v, match interface{}) bool) interface{}
+		Load(interface{})
 }
 
 // 设置接口
@@ -136,12 +140,24 @@ func (this *ConfigureProviderImpl) Values() []interface{} {
 		return this.config().Values()
 }
 
+func (this *ConfigureProviderImpl) Foreach(each func(k, v interface{}) bool) {
+		this.config().Foreach(each)
+}
+
+func (this *ConfigureProviderImpl) Search(search func(k, v, matches interface{}) bool) interface{} {
+		return this.config().Search(search)
+}
+
 func (this *ConfigureProviderImpl) Constructor() interface{} {
 		return ConfigureProviderOf()
 }
 
 func (this *ConfigureProviderImpl) String() string {
 		return this.Name
+}
+
+func (this *ConfigureProviderImpl) Load(v interface{}) {
+		this.config().Load(v)
 }
 
 func (this *ConfigureProviderImpl) Register() {
@@ -180,8 +196,9 @@ func ConfigureProviderOf() ConfigureProvider {
 		return provider
 }
 
-func ConfigureOf() GetterInterface {
+func ConfigureOf() Configuration {
 		var configure = new(Configure)
+		configure.Mapper = &sync.Map{}
 		return configure
 }
 
@@ -314,6 +331,23 @@ func (this *Configure) Strings(key string, defaults ...[]string) []string {
 		return defaults[0]
 }
 
+// 遍历接口
+func (this *Configure) Foreach(each func(k, v interface{}) bool) {
+		this.Mapper.Range(each)
+}
+
+// 查找接口
+func (this *Configure) Search(search func(k, v, match interface{}) bool) interface{} {
+		var matches interface{}
+		this.Mapper.Range(func(key, value interface{}) bool {
+				if !search(key, value, matches) {
+						return false
+				}
+				return true
+		})
+		return matches
+}
+
 func (this *Configure) Any(key string, defaults ...interface{}) interface{} {
 		if len(defaults) == 0 {
 				defaults = append(defaults, nil)
@@ -395,15 +429,144 @@ func (this *Configure) Values() []interface{} {
 		return values
 }
 
+func (this *Configure) Loader(params ConfigLoaderParams) {
+		if params != nil {
+				params.Load(this)
+		}
+}
+
+func (this *Configure) Load(v interface{}) {
+		if params, ok := v.(ConfigLoaderParams); ok && !params.IsEmpty() {
+				this.Loader(params)
+		}
+		params := ConfigLoaderParamsOf(v)
+		if !params.IsEmpty() {
+				this.Loader(params)
+		}
+}
+
+type ConfigLoaderParamsImpl struct {
+		Object interface{}                   // []string| configure | map |reader
+		Loader func(configure Configuration) // 自定义加载器
+}
+
+type ConfigLoaderParams interface {
+		Load(configuration Configuration)
+		IsEmpty() bool
+}
+
+// 参数加载器
+func ConfigLoaderParamsOf(args ...interface{}) ConfigLoaderParams {
+		var params = new(ConfigLoaderParamsImpl)
+		if len(args) > 0 {
+				for _, v := range args {
+						if str, ok := v.(string); ok && params.Object == nil {
+								files := MakeFiles(str)
+								if len(files) == 0 {
+										continue
+								}
+								params.Object = files
+								continue
+						}
+						if arr, ok := v.([]string); ok && params.Object == nil {
+								params.Object = arr
+								continue
+						}
+						if config, ok := v.(Configuration); ok && params.Object == nil {
+								params.Object = config
+								continue
+						}
+						if reader, ok := v.(io.Reader); ok && params.Object == nil {
+								params.Object = reader
+								continue
+						}
+						if loader, ok := v.(func(configure Configuration)); ok && params.Loader == nil {
+								params.Loader = loader
+								continue
+						}
+						// 类型 mapper
+						if mapper, ok := v.(map[string]interface{}); ok && params.Object == nil {
+								params.Object = mapper
+						}
+						if mapper, ok := v.(*map[string]interface{}); ok && params.Object == nil {
+								params.Object = *mapper
+						}
+						if obj, ok := v.(ConfigLoaderParams); ok && !obj.IsEmpty() {
+								if params.Object == nil && params.Loader == nil {
+										return obj
+								}
+						}
+				}
+		}
+		return params
+}
+
+func (this *ConfigLoaderParamsImpl) IsEmpty() bool {
+		if this.Object == nil && this.Loader == nil {
+				return true
+		}
+		return false
+}
+
+func (this *ConfigLoaderParamsImpl) Load(Cnf Configuration) {
+		// 加载器加载
+		if this.Loader != nil {
+				this.Loader(Cnf)
+		}
+		// 对象加载器
+		if this.Object != nil {
+				if arr, ok := this.Object.([]string); ok {
+						for _, fs := range arr {
+								scope := GetScope(fs)
+								// 非空文件
+								if IsFile(fs) != 1 {
+										continue
+								}
+								if prop, err := kvs.ReadProperties(GetFileReader(fs)); err == nil {
+										for k, v := range prop.Values {
+												Cnf.Add(scope+"."+k, v)
+										}
+								}
+						}
+				}
+				if config, ok := this.Object.(Configuration); ok {
+						config.Foreach(func(k, v interface{}) bool {
+								if str, ok := k.(string); ok {
+										Cnf.Add(str, v)
+										return true
+								}
+								if str, ok := k.(fmt.Stringer); ok {
+										Cnf.Add(str.String(), v)
+								}
+								return true
+						})
+				}
+				// reader
+				if reader, ok := this.Object.(io.Reader); ok {
+						if props, err := kvs.ReadProperties(reader); err == nil {
+								for k, v := range props.Values {
+										Cnf.Add(k, v)
+								}
+						}
+				}
+				// 类型 mapper
+				if mapper, ok := this.Object.(map[string]interface{}); ok {
+						for k, v := range mapper {
+								Cnf.Add(k, v)
+						}
+				}
+		}
+}
+
 // 获取配置读取方式
 func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 		// 文件读取器
-		if files, ok := app.GetProfile("AppFile.Properties").([]string); ok {
+		if files, ok := app.GetProfile("AppFile.Properties.files").([]string); ok {
 				for _, fs := range files {
 						scope := GetScope(fs)
 						if prop, err := kvs.ReadProperties(GetFileReader(fs)); err == nil {
 								for k, v := range prop.Values {
-										config.Add(scope+k, v)
+										config.Add(scope+"."+k, v)
 								}
 						}
 				}
@@ -414,6 +577,29 @@ func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 						for k, v := range prop.Values {
 								config.Add(k, v)
 						}
+				}
+		}
+}
+
+// 毒蛇加载器 读取配置
+func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
+		// 文件读取器
+		if paths, ok := app.GetProfile("AppFile.Properties.Paths").([]string); ok {
+				Libs.NewViperLoader(paths).CopyTo(config)
+		}
+		if files, ok := app.GetProfile("AppFile.Properties.files").([]string); ok {
+				for _, file := range files {
+						loader := Libs.NewViperLoader()
+						loader.Mapper.SetConfigFile(file)
+						loader.CopyTo(config)
+				}
+		}
+		// 读取器
+		if reader, ok := app.GetProfile("AppFile.Properties.Reader").(io.Reader); ok {
+				loader := Libs.NewViperLoader()
+				err := loader.Mapper.ReadConfig(reader)
+				if err == nil {
+						loader.CopyTo(config)
 				}
 		}
 }

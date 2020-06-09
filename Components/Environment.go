@@ -228,6 +228,17 @@ func (this *HashMapperStrKeyEntry) Set(key string, value interface{}) {
 		this.add(keys, value, HashIndexOf(index, end, exists))
 }
 
+// 查找
+func (this *HashMapperStrKeyEntry) Search(search func(k, v, match interface{}) bool) interface{} {
+		var res interface{}
+		for _, it := range this.container {
+				if !search(it.Key, it.Value, res) {
+						break
+				}
+		}
+		return res
+}
+
 // 节点数
 func (this *HashMapperStrKeyEntry) Count() int {
 		return len(this.container)
@@ -299,7 +310,7 @@ func (this *HashMapperStrKeyEntry) find(scopes []string) (int, int, bool) {
 }
 
 // 遍历
-func (this *HashMapperStrKeyEntry) Foreach(each func(key string, v interface{}) bool) {
+func (this *HashMapperStrKeyEntry) Foreach(each func(key, v interface{}) bool) {
 		for _, entry := range this.container {
 				if entry == nil {
 						continue
