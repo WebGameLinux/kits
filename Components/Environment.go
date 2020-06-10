@@ -4,6 +4,7 @@ import (
 		"github.com/webGameLinux/kits/Contracts"
 		"os"
 		"strings"
+		"sync"
 )
 
 type EnvironmentProvider interface {
@@ -64,9 +65,20 @@ func StrKeyEntryOf(args ...interface{}) *StrKeyEntry {
 		return entry
 }
 
+var (
+		environmentInstanceLock sync.Once
+		environment             *EnvironmentProviderImpl
+)
+
+func environmentProviderNew() {
+		environment = new(EnvironmentProviderImpl)
+}
+
 func EnvironmentProviderOf() EnvironmentProvider {
-		var env = new(EnvironmentProviderImpl)
-		return env
+		if environment == nil {
+				environmentInstanceLock.Do(environmentProviderNew)
+		}
+		return environment
 }
 
 func EnvironmentComponentsOf(file ...string) *EnvironmentComponents {

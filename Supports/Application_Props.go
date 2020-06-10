@@ -56,9 +56,11 @@ func (this *ApplicationProps) initKeyValues() {
 
 func (this *ApplicationProps) initProviders() {
 		this.Providers = []Contracts.Provider{
+				Components.AppBootstrapperOf(),         // bootstrapper
 				Components.CommandLineArgsProviderOf(), // commandLine
 				Components.EnvironmentProviderOf(),     // environment
 				Components.ConfigureProviderOf(),       // configure
+				Components.LoggerProviderOf(),          // logger
 		}
 }
 

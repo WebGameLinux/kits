@@ -156,12 +156,6 @@ func (this *ApplicationImpl) InitFn() {
 		if !this.isInit(providerName) {
 				this.InitCoreProviders()
 		}
-		if !this.isInit(registerName) {
-				this.InitRegisters()
-		}
-		if !this.isInit(bootName) {
-				this.InitBoots()
-		}
 }
 
 func (this *ApplicationImpl) stateKey(key string) string {
@@ -303,16 +297,25 @@ func (this *ApplicationImpl) Get(faced string) interface{} {
 		constructor := InstanceOfConstructor(entry.value)
 		if constructor != nil {
 				instance := constructor()
-				entry.Extras().Store(SINGLETON_OBJECT, instance)
+				if instance != nil {
+						entry.Extras().Store(SINGLETON_OBJECT, instance)
+				}
 				return instance
 		}
 		factory := InstanceOfFactory(entry.value)
 		if factory != nil {
 				instance := factory(this)
-				entry.Extras().Store(SINGLETON_OBJECT, instance)
+				if instance != nil {
+						entry.Extras().Store(SINGLETON_OBJECT, instance)
+				}
 				return instance
 		}
 		return nil
+}
+
+// 获取相关服务或者状态
+func (this *ApplicationImpl) Exists(faced string) bool {
+		return this.container.Exists(faced)
 }
 
 // 注册服务提供器
@@ -342,7 +345,6 @@ func (this *ApplicationImpl) loadCoreProviders() {
 // 获取核心服务提供
 func (this *ApplicationImpl) getCoreProviders() []Contracts.Provider {
 		var providers []Contracts.Provider
-
 		v := this.getDefaultProps()
 		if v == nil {
 				return providers
@@ -405,23 +407,43 @@ func (this *ApplicationImpl) propertiesInitFactory() {
 
 // 发送事件
 func (this *ApplicationImpl) Emit(event string, target interface{}) {
-
+		// @todo
 }
 
 // 获取当前register加载的位置
 func (this *ApplicationImpl) getRegisterPointer() int {
-		return this.getInitCount(coreRegistersInitCount) + 1
+		return this.getInitCount(coreRegistersInitCount) - 1
 }
 
 // 获取当前boot加载的位置
 func (this *ApplicationImpl) getBootPointer() int {
-		return this.getInitCount(coreBootInitCount) + 1
+		return this.getInitCount(coreBootInitCount) - 1
 }
 
 // 初始服务提供
 func (this *ApplicationImpl) providersInit() {
-		this.registers.Start(this.getBootPointer()).Foreach(this.foreachRegister())
-		this.boots.Start(this.getRegisterPointer()).Foreach(this.foreachBoot())
+		this.LoadCoreProviders()
+		this.LoadCustomProviders()
+}
+
+// 加载核心服务
+func (this *ApplicationImpl) LoadCoreProviders() {
+		if !this.isInit(registerName) {
+				this.InitRegisters()
+		}
+		if !this.isInit(bootName) {
+				this.InitBoots()
+		}
+}
+
+// 加载自定义 服务器提供器
+func (this *ApplicationImpl) LoadCustomProviders() {
+		index := this.getBootPointer()
+		registers := this.registers.Start(index)
+		registers.Foreach(this.foreachRegister())
+		index = this.getRegisterPointer()
+		boots := this.boots.Start(index)
+		boots.Foreach(this.foreachBoot())
 }
 
 // each register
@@ -491,19 +513,21 @@ func (this *ApplicationImpl) StarUp() {
 		if ch, ok = v.(chan int); ok {
 				this.properties.Store(ctrlChan, ch)
 		}
+
 		// 注册用户自定义的 providers
 		this.providersInit()
 		this.Emit(StartEv, ch)
+		ticker:=time.NewTicker(3 * time.Second)
 		// 等待结束
 		for {
 				select {
 				case signal := <-ch:
 						if signal == -1 {
 								close(ch)
+								ticker.Stop()
 								return
 						}
-						this.GetProfile("")
-				case <-time.NewTicker(3 * time.Second).C:
+				case <-ticker.C:
 				}
 		}
 }

@@ -64,6 +64,19 @@ type ConfigureProviderImpl struct {
 		app      Contracts.ApplicationContainer
 }
 
+const (
+		ConfigAlias            = "config"
+		ConfigureAlias         = "configure"
+		ConfigurationAlias     = "Configuration"
+		ConfigureLoaderName    = "ConfigureLoader"
+		ConfigureProviderClass = "ConfigureProvider"
+)
+
+var (
+		configureInstanceLock sync.Once
+		configureProvider     *ConfigureProviderImpl
+)
+
 func (this *ConfigureProviderImpl) GetClazz() Contracts.ClazzInterface {
 		if this.clazz == nil {
 				this.clazz = ClazzOf(this)
@@ -162,16 +175,16 @@ func (this *ConfigureProviderImpl) Load(v interface{}) {
 
 func (this *ConfigureProviderImpl) Register() {
 		this.app.Bind(this.String(), this)
-		this.app.Bind("configure", this.instance)
-		this.app.Alias("configure", "Configuration")
-		this.app.Singleton("config", this.Factory)
-		this.app.Bind("ConfigureLoader", ConfigLoader)
+		this.app.Bind(ConfigureAlias, this.instance)
+		this.app.Alias(ConfigureAlias, ConfigurationAlias)
+		this.app.Singleton(ConfigAlias, this.Factory)
+		this.app.Bind(ConfigureLoaderName, ConfigLoader)
 }
 
 func (this *ConfigureProviderImpl) Boot() {
-		configure := this.app.Get("Configuration")
+		configure := this.app.Get(ConfigurationAlias)
 		if cnf, ok := configure.(Configuration); ok {
-				fn := this.app.Get("ConfigureLoader")
+				fn := this.app.Get(ConfigureLoaderName)
 				if loader, ok := fn.(ConfigureLoader); ok {
 						loader(cnf, this.app)
 				}
@@ -183,7 +196,7 @@ func (this *ConfigureProviderImpl) Exists(key string) bool {
 }
 
 func (this *ConfigureProviderImpl) config() Configuration {
-		var configure = this.app.Get("config")
+		var configure = this.app.Get(ConfigAlias)
 		if cnf, ok := configure.(Configuration); ok {
 				return cnf
 		}
@@ -191,9 +204,15 @@ func (this *ConfigureProviderImpl) config() Configuration {
 }
 
 func ConfigureProviderOf() ConfigureProvider {
-		var provider = new(ConfigureProviderImpl)
-		provider.Name = "ConfigureProvider"
-		return provider
+		if configureProvider == nil {
+				configureInstanceLock.Do(configureProviderNew)
+		}
+		return configureProvider
+}
+
+func configureProviderNew() {
+		configureProvider = new(ConfigureProviderImpl)
+		configureProvider.Name = ConfigureProviderClass
 }
 
 func ConfigureOf() Configuration {
