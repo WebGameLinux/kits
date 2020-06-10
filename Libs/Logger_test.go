@@ -17,21 +17,19 @@ func TestNewLoggerBird(t *testing.T) {
 				LogTypeError: channels,
 		}
 		log.AppendChannel(ch)
-
+		time.AfterFunc(10*time.Second,func() {
+				uid, _ := uuid.GenerateUUID()
+				for _, ch := range channels {
+						fmt.Println("worker:", uid)
+						if len(ch) > 0 {
+								fmt.Printf("%T,%v\n", ch, <-ch)
+						}
+				}
+		})
 		for {
 				select {
-				case <-time.NewTicker(3 * time.Second).C:
-						log.Error(time.Now().String() + ":::log")
-				case <-time.NewTicker(10 * time.Second).C:
-						go func(arr []chan interface{}) {
-								uid, _ := uuid.GenerateUUID()
-								for _, ch := range arr {
-										fmt.Println("worker:", uid)
-										if len(ch) > 0 {
-												fmt.Printf("%T,%v\n", ch, <-ch)
-										}
-								}
-						}(channels)
+				case <-time.NewTicker(2 * time.Second).C:
+						log.Error("日志测试" + ":::log")
 				}
 		}
 
