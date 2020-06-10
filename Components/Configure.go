@@ -262,6 +262,9 @@ func (this *ConfigureProviderImpl) Boot() {
 				if loader, ok := fn.(ConfigureLoader); ok {
 						loader(cnf, this.app)
 				}
+				if loader, ok := fn.(func(Configuration, Contracts.ApplicationContainer)); ok {
+						loader(cnf, this.app)
+				}
 		}
 }
 

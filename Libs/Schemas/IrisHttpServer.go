@@ -17,11 +17,11 @@ type irisHttpServer struct {
 		clazz  Contracts.ClazzInterface
 }
 
-type PreparesFunc func(*iris.Application)
-type RegisterFunc func(Contracts.ApplicationContainer)
+type PreparesFunc func(app *iris.Application)
+type RegisterFunc func(app Contracts.ApplicationContainer)
 
 type IrisConfigureGetter func() iris.Configuration
-type IrisConfigureLoader func(Contracts.ApplicationContainer) iris.Configuration
+type IrisConfigureLoader func(app Contracts.ApplicationContainer) iris.Configuration
 
 // 配置获取器
 type IrisConfigureProviderInterface interface {
@@ -78,12 +78,12 @@ func (this *irisHttpServer) registerAfter() {
 		if registerAfters == nil {
 				return
 		}
-		if arr, ok := registerAfters.([]RegisterFunc); ok {
+		if arr, ok := registerAfters.([]func(Contracts.ApplicationContainer)); ok {
 				for _, fn := range arr {
 						fn(this.app)
 				}
 		}
-		if fn, ok := registerAfters.(RegisterFunc); ok {
+		if fn, ok := registerAfters.(func(Contracts.ApplicationContainer)); ok {
 				fn(this.app)
 		}
 }
@@ -156,13 +156,14 @@ func (this *irisHttpServer) prepare() {
 				return
 		}
 		// 服务启动前置组
-		if prepares, ok := bootPrepares.([]PreparesFunc); ok {
+		if prepares, ok := bootPrepares.([]func(*iris.Application)); ok {
 				for _, fn := range prepares {
 						fn(this.GetServer())
 				}
 		}
 		// 单个
-		if fn, ok := bootPrepares.(PreparesFunc); ok {
+		fn, ok := bootPrepares.(func(*iris.Application))
+		if ok {
 				fn(this.GetServer())
 		}
 }
@@ -177,8 +178,12 @@ func (this *irisHttpServer) StartUp() {
 
 // 启动服务
 func (this *irisHttpServer) run() {
+
 		err := this.Server.Run(this.getServerRunner())
 		this.logger(err)
+		if err != nil {
+				this.app.Stop()
+		}
 }
 
 // 服务停止日志记录

@@ -1,12 +1,15 @@
 package Functions
 
 import (
+		stdContext "context"
 		"fmt"
+		"github.com/kataras/iris"
 		"github.com/webGameLinux/kits/Components"
 		"github.com/webGameLinux/kits/Contracts"
 		"github.com/webGameLinux/kits/Libs/Schemas"
 		"github.com/webGameLinux/kits/Supports"
 		"reflect"
+		"time"
 )
 
 func init() {
@@ -72,6 +75,8 @@ func Bootstrap(apps ...Contracts.ApplicationContainer) {
 		// bootstrapper.Add(Components.SchemaServiceProviderOf().(Components.Bootstrapper))
 		app.Register(Components.SchemaServiceProviderOf())
 		app.Register(Schemas.IrisHttpServerOf())
+		app.Bind(Schemas.IrisConfigurationProviderBootPrepares,RegisterOnInterrupt)
+
 }
 
 // 获取 BootstrapProvider
@@ -81,4 +86,14 @@ func GetBootstrap(container Contracts.ApplicationContainer) Components.Bootstrap
 				return bootstrapper
 		}
 		return nil
+}
+
+func RegisterOnInterrupt(app *iris.Application) {
+		iris.RegisterOnInterrupt(func() {
+				timeout := 5 * time.Second
+				ctx, cancel := stdContext.WithTimeout(stdContext.Background(), timeout)
+				defer cancel()
+				// close all hosts
+				_ = app.Shutdown(ctx)
+		})
 }
