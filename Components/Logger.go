@@ -23,7 +23,7 @@ type LoggerProviderImpl struct {
 		Name     string
 		app      Contracts.ApplicationContainer
 		clazz    Contracts.ClazzInterface
-		bean     *Contracts.SupportBean
+		bean     Contracts.SupportInterface
 		instance Logger
 }
 
@@ -80,11 +80,11 @@ func (this *LoggerProviderImpl) initBase() {
 		this.GetSupportBean()
 }
 
-func (this *LoggerProviderImpl) GetSupportBean() Contracts.SupportBean {
+func (this *LoggerProviderImpl) GetSupportBean() Contracts.SupportInterface {
 		if this.bean == nil {
 				this.bean = BeanOf()
 		}
-		return *this.bean
+		return this.bean
 }
 
 func (this *LoggerProviderImpl) Register() {

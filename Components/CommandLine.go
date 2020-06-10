@@ -37,7 +37,7 @@ type OptionArg struct {
 // 命令行服务
 type CommandLineArgsProviderImpl struct {
 		command Commander
-		bean    *Contracts.SupportBean
+		bean    Contracts.SupportInterface
 		clazz   Contracts.ClazzInterface
 		app     Contracts.ApplicationContainer
 }
@@ -70,11 +70,11 @@ func (this *CommandLineArgsProviderImpl) Init(app Contracts.ApplicationContainer
 		this.command = CommanderOf()
 }
 
-func (this *CommandLineArgsProviderImpl) GetSupportBean() Contracts.SupportBean {
+func (this *CommandLineArgsProviderImpl) GetSupportBean() Contracts.SupportInterface {
 		if this.bean == nil {
 				this.bean = BeanOf()
 		}
-		return *this.bean
+		return this.bean
 }
 
 func (this *CommandLineArgsProviderImpl) Register() {

@@ -34,7 +34,7 @@ type HashIndex struct {
 
 type EnvironmentProviderImpl struct {
 		manager *EnvironmentComponents
-		bean    *Contracts.SupportBean
+		bean    Contracts.SupportInterface
 		clazz   Contracts.ClazzInterface
 		app     Contracts.ApplicationContainer
 }
@@ -131,11 +131,11 @@ func (this *EnvironmentProviderImpl) initBean() {
 		this.bean = BeanOf()
 }
 
-func (this *EnvironmentProviderImpl) GetSupportBean() Contracts.SupportBean {
+func (this *EnvironmentProviderImpl) GetSupportBean() Contracts.SupportInterface {
 		if this.bean == nil {
 				this.initBean()
 		}
-		return *this.bean
+		return this.bean
 }
 
 func (this *EnvironmentProviderImpl) Register() {

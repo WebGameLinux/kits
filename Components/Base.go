@@ -22,11 +22,23 @@ const (
 		IsEmptyFileFlag     = 10
 )
 
-func BeanOf() *Contracts.SupportBean {
-		var bean = new(Contracts.SupportBean)
+type SupportBeanExtend struct {
+		Contracts.SupportBean
+}
+
+func BeanOf() Contracts.SupportInterface {
+		var bean = new(SupportBeanExtend)
 		bean.Boot = true
 		bean.Register = true
 		return bean
+}
+
+func (this *SupportBeanExtend) HasRegister() bool {
+		return this.Register
+}
+
+func (this *SupportBeanExtend) HasBoot() bool {
+		return this.Boot
 }
 
 // 打开文件

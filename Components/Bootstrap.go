@@ -33,7 +33,7 @@ type appBootstrapper struct {
 		Lists  map[string]Bootstrapper
 		app    Contracts.ApplicationContainer
 		clazz  Contracts.ClazzInterface
-		bean   *Contracts.SupportBean
+		bean   Contracts.SupportInterface
 }
 
 var (
@@ -75,11 +75,11 @@ func (this *appBootstrapper) Init(app Contracts.ApplicationContainer) {
 		}
 }
 
-func (this *appBootstrapper) GetSupportBean() Contracts.SupportBean {
+func (this *appBootstrapper) GetSupportBean() Contracts.SupportInterface {
 		if this.bean == nil {
 				this.bean = BeanOf()
 		}
-		return *this.bean
+		return this.bean
 }
 
 func (this *appBootstrapper) Register() {

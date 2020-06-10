@@ -3,6 +3,8 @@ package Supports
 import (
 		"github.com/webGameLinux/kits/Components"
 		"github.com/webGameLinux/kits/Contracts"
+		"os"
+		"path/filepath"
 		"reflect"
 )
 
@@ -12,15 +14,34 @@ type ApplicationProps struct {
 		AppName           string
 		Version           string
 		ApkPath           string
+		BasePath          string
+		ConfigDir         string
+		RunMode           string
 		CtrChan           chan int
 }
-
-var defaultProps *ApplicationProps
 
 // 常量
 const (
 		appName        = "app"
 		appVersionName = "1.0.0"
+		RunModeDev     = "dev"
+		RunModeTest    = "test"
+		RunModeLocal   = "local"
+		RunModelProd   = "prod"
+		RunModelStag   = "stg"
+		RunModelEnv    = "RunMode"
+		ConfigDirEnv   = "ConfigDir"
+)
+
+var (
+		defaultProps    *ApplicationProps
+		supportRunModes = []string{
+				RunModeDev,
+				RunModeTest,
+				RunModeLocal,
+				RunModelProd,
+				RunModelStag,
+		}
 )
 
 // 获取应用默认属性配置 | 内置配置
@@ -31,15 +52,28 @@ func getApplicationDefaultProps() *ApplicationProps {
 		return defaultProps
 }
 
+// 获取应用默认配置
+func ApplicationDefaultProps() *ApplicationProps {
+		return getApplicationDefaultProps()
+}
+
 func defaultPropsFactory() {
 		defaultProps = new(ApplicationProps)
 		defaultProps.init()
+}
+
+func GetSupportRunModes() []string {
+		return supportRunModes
 }
 
 func (this *ApplicationProps) init() *ApplicationProps {
 		this.initKeyValues()
 		this.initProviders()
 		return this
+}
+
+func (this *ApplicationProps) GetArgs() []string {
+		return os.Args
 }
 
 func (this *ApplicationProps) GetProviders() []Contracts.Provider {
@@ -52,6 +86,30 @@ func (this *ApplicationProps) initKeyValues() {
 		this.CtrChan = make(chan int, 2)
 		this.ApkPath = reflect.TypeOf(this).Elem().PkgPath()
 		this.ConfigFilesSuffix = []string{".yml", ".properties", ".ini"}
+		this.BasePath = this.getCurrentDir()
+		this.RunMode = this.getCurrentMode()
+		this.ConfigDir = this.getCurrentConfigDir()
+}
+
+func (this *ApplicationProps) getCurrentDir() string {
+		dir, _ := filepath.Abs(".")
+		return filepath.Dir(dir)
+}
+
+func (this *ApplicationProps) getCurrentMode() string {
+		mode := os.Getenv(RunModelEnv)
+		if mode == "" {
+				return RunModeDev
+		}
+		return mode
+}
+
+func (this *ApplicationProps) getCurrentConfigDir() string {
+		dir := os.Getenv(ConfigDirEnv)
+		if dir == "" {
+				return this.BasePath + string(filepath.Separator) + "configs"
+		}
+		return dir
 }
 
 func (this *ApplicationProps) initProviders() {
@@ -98,7 +156,24 @@ func (this *ApplicationProps) Get(key string) interface{} {
 				fallthrough
 		case "app_ctrl_chan":
 				return this.CtrChan
-
+		case "BasePath":
+				fallthrough
+		case "basepath":
+				fallthrough
+		case "base_path":
+				return this.BasePath
+		case "ConfigDir":
+				fallthrough
+		case "configdir":
+				fallthrough
+		case "config_dir":
+				return this.ConfigDir
+		case "RunMode":
+				fallthrough
+		case "runmode":
+				fallthrough
+		case "run_mode":
+				return this.RunMode
 		}
 		return nil
 }
@@ -117,5 +192,6 @@ func (this *ApplicationProps) keys() []string {
 		return []string{
 				"Providers", "AppName", "Version",
 				"ApkPath", "ConfigFilesSuffix", "appCtrlChan",
+				"BasePath", "ConfigDir", "RunMode",
 		}
 }

@@ -361,10 +361,10 @@ func (this *ApplicationImpl) register(provider Contracts.Provider) {
 		provider.Init(this)
 		// 提供相关注册选择
 		var bean = provider.GetSupportBean()
-		if bean.Boot {
+		if bean.HasBoot() {
 				this.boots.Add(provider)
 		}
-		if bean.Register {
+		if bean.HasRegister() {
 				this.registers.Add(provider)
 		}
 }
@@ -408,6 +408,7 @@ func (this *ApplicationImpl) propertiesInitFactory() {
 // 发送事件
 func (this *ApplicationImpl) Emit(event string, target interface{}) {
 		// @todo
+		fmt.Println(event,target)
 }
 
 // 获取当前register加载的位置

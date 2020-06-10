@@ -57,7 +57,7 @@ type BootInterface interface {
 type Provider interface {
 		GetClazz() ClazzInterface
 		Init(ApplicationContainer)
-		GetSupportBean() SupportBean
+		GetSupportBean() SupportInterface
 		RegisterInterface
 		BootInterface
 }
@@ -81,4 +81,9 @@ type Starter interface {
 		Block() bool
 		State() int
 		Initializer(...ApplicationContainer)
+}
+
+type SupportInterface interface {
+		HasBoot() bool
+		HasRegister() bool
 }

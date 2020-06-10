@@ -20,7 +20,7 @@ type SchemaService interface {
 
 type SchemaServiceProviderImpl struct {
 		Name        string
-		bean        *Contracts.SupportBean
+		bean        Contracts.SupportInterface
 		clazz       Contracts.ClazzInterface
 		SchemaLists []SchemaService
 		app         Contracts.ApplicationContainer
@@ -54,11 +54,11 @@ func (this *SchemaServiceProviderImpl) Init(app Contracts.ApplicationContainer) 
 		}
 }
 
-func (this *SchemaServiceProviderImpl) GetSupportBean() Contracts.SupportBean {
+func (this *SchemaServiceProviderImpl) GetSupportBean() Contracts.SupportInterface {
 		if this.bean == nil {
 				this.bean = BeanOf()
 		}
-		return *this.bean
+		return this.bean
 }
 
 func (this *SchemaServiceProviderImpl) Register() {
@@ -99,10 +99,7 @@ func (this *SchemaServiceProviderImpl) Set(key string, v interface{}) {
 						this.clazz = class
 				}
 		case "bean":
-				if bean, ok := v.(Contracts.SupportBean); ok && this.bean == nil {
-						this.bean = &bean
-				}
-				if bean, ok := v.(*Contracts.SupportBean); ok && this.bean == nil {
+				if bean, ok := v.(Contracts.SupportInterface); ok && this.bean == nil {
 						this.bean = bean
 				}
 		case "class":

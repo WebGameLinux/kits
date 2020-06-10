@@ -50,6 +50,7 @@ type Configuration interface {
 type ConfigureProvider interface {
 		Contracts.Provider
 		GetterInterface
+		Inject(scope string, obj interface{}, tags ...string) bool
 }
 
 type Configure struct {
@@ -59,7 +60,7 @@ type Configure struct {
 type ConfigureProviderImpl struct {
 		Name     string
 		instance GetterInterface
-		bean     *Contracts.SupportBean
+		bean     Contracts.SupportInterface
 		clazz    Contracts.ClazzInterface
 		app      Contracts.ApplicationContainer
 }
@@ -93,11 +94,11 @@ func (this *ConfigureProviderImpl) Init(app Contracts.ApplicationContainer) {
 		this.clazz = ClazzOf(this)
 }
 
-func (this *ConfigureProviderImpl) GetSupportBean() Contracts.SupportBean {
+func (this *ConfigureProviderImpl) GetSupportBean() Contracts.SupportInterface {
 		if this.bean == nil {
 				this.bean = BeanOf()
 		}
-		return *this.bean
+		return this.bean
 }
 
 func (this *ConfigureProviderImpl) Int(key string, defaults ...int) int {
@@ -159,6 +160,79 @@ func (this *ConfigureProviderImpl) Foreach(each func(k, v interface{}) bool) {
 
 func (this *ConfigureProviderImpl) Search(search func(k, v, matches interface{}) bool) interface{} {
 		return this.config().Search(search)
+}
+
+// 配置注入
+// scope 作用域|前缀
+// obj   struct
+// tag  struct 注入tag, 1-3个支持,默认使用json tag 注入
+func (this *ConfigureProviderImpl) Inject(scope string, obj interface{}, tags ...string) bool {
+		var (
+				injector = NewInjector(tags...)
+				tagArr   = injector.Values(obj)
+		)
+		if tagArr == nil || len(tagArr) == 0 {
+				return false
+		}
+		mapper, tag := this.getScopes(scope, tagArr)
+		if len(mapper) == 0 || tag == "" {
+				return false
+		}
+		return injector.Copy(mapper, obj, tag)
+}
+
+// 批量获取
+// 值 mapper, tag
+// tag == "" 表示不完整获取
+func (this *ConfigureProviderImpl) getScopes(root string, keys interface{}) (map[string]interface{}, string) {
+		var (
+				n      int
+				tag    = "default"
+				mapper = make(map[string]interface{})
+		)
+		if keys == nil {
+				return mapper, ""
+		}
+		// 批量获取的
+		if arr, ok := keys.([]string); ok {
+				mapper, n = this.getScopesByArr(root, arr)
+				if n == len(arr) && len(mapper) > 0 {
+						return mapper, tag
+				}
+				return mapper, ""
+		}
+		// 分组获取的
+		if mapArr, ok := keys.(map[string][]string); ok {
+				var arr []string
+				for tag, arr = range mapArr {
+						mapper, n = this.getScopesByArr(root, arr)
+						if n == len(arr) && len(mapper) > 0 {
+								return mapper, tag
+						}
+				}
+		}
+		return mapper, ""
+}
+
+// 批量获取
+// 值 ，长度
+func (this *ConfigureProviderImpl) getScopesByArr(root string, keys []string) (map[string]interface{}, int) {
+		if len(keys) == 0 {
+				return map[string]interface{}{}, 0
+		}
+		var mapper = make(map[string]interface{})
+		for _, key := range keys {
+				k := key
+				if root != "" {
+						key = root + "." + key
+				}
+				val := this.Any(key)
+				if val == nil {
+						continue
+				}
+				mapper[k] = val
+		}
+		return mapper, len(mapper)
 }
 
 func (this *ConfigureProviderImpl) Constructor() interface{} {
@@ -454,6 +528,7 @@ func (this *Configure) Loader(params ConfigLoaderParams) {
 		}
 }
 
+// 添加载入｜配置
 func (this *Configure) Load(v interface{}) {
 		if params, ok := v.(ConfigLoaderParams); ok && !params.IsEmpty() {
 				this.Loader(params)

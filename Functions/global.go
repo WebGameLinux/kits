@@ -1,11 +1,18 @@
 package Functions
 
 import (
+		"fmt"
 		"github.com/webGameLinux/kits/Components"
 		"github.com/webGameLinux/kits/Contracts"
+		"github.com/webGameLinux/kits/Libs/Schemas"
 		"github.com/webGameLinux/kits/Supports"
 		"reflect"
 )
+
+func init() {
+		var props = Supports.ApplicationDefaultProps()
+		fmt.Println(props.GetArgs())
+}
 
 // 获取容器中的服务
 func App(key string) interface{} {
@@ -64,6 +71,7 @@ func Bootstrap(apps ...Contracts.ApplicationContainer) {
 		}
 		// bootstrapper.Add(Components.SchemaServiceProviderOf().(Components.Bootstrapper))
 		app.Register(Components.SchemaServiceProviderOf())
+		app.Register(Schemas.IrisHttpServerOf())
 }
 
 // 获取 BootstrapProvider
