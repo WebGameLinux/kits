@@ -252,17 +252,58 @@ func (this *LoggerBird) save(log map[string]interface{}) {
 						delete(log, Channel)
 				}
 		}
-		if logText, err := json.Marshal(log); err == nil {
-				saveLog(file, logText, os.ModePerm)
+		logText := this.format(log)
+		if logText != "" {
+				saveLog(file, []byte(logText), os.ModePerm)
+		} else {
+				if logText, err := json.Marshal(log); err == nil {
+						saveLog(file, logText, os.ModePerm)
+				}
 		}
 		sysLog.Println(log)
 }
 
+func (this *LoggerBird) format(log map[string]interface{}) string {
+		var (
+				at    int64
+				level string
+				text  string
+		)
+		if timeAt, ok := log[TimeAt]; ok {
+				if at, ok = timeAt.(int64); !ok {
+						return ""
+				}
+		}
+		if target, ok := log[Target]; ok {
+				if level, ok = target.(string); !ok {
+						return ""
+				}
+		}
+		if texts, ok := log[LogTexts]; ok {
+				if contents, ok := texts.([]interface{}); ok {
+						for _, txt := range contents {
+								if str, ok := txt.(string); ok {
+										text = text + str
+										continue
+								}
+								if str, ok := txt.(fmt.Stringer); ok {
+										text = text + str.String()
+								}
+						}
+				}
+		}
+		if text == "" {
+				return ""
+		}
+		t := time.Unix(at, 0).Format(time.RFC3339)
+		return fmt.Sprintf("[%s] %s %s \n", level, t, text)
+}
+
 func (this *LoggerBird) getCacheFile() string {
-		file := fmt.Sprintf("log_flush_save.%s.log", time.Now().Format("2020-10-20"))
+		y, m, d := time.Now().Date()
 		_ = os.MkdirAll(this.FlushCachePathRoot, os.ModePerm)
-		file = this.FlushCachePathRoot + string(filepath.Separator) + file
-		return file
+		file := fmt.Sprintf("log_flush_save.%d-%d-%d.log", y, m, d)
+		return this.FlushCachePathRoot + string(filepath.Separator) + file
 }
 
 // 检查缓存日志
