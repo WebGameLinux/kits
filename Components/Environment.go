@@ -48,6 +48,7 @@ type EnvironmentFileLoaderFunc func(string) map[string]string
 
 const (
 		EnvironmentAlias                 = "env"
+		EnvFileType                      = "env"
 		EnvironmentLock                  = "env_lock"
 		EnvFileDefault                   = ".env"
 		EnvFileExt                       = ".env"
@@ -238,6 +239,35 @@ func (this *EnvironmentProviderImpl) getEnvFile() string {
 		return EnvFileDefault
 }
 
+func (this *EnvironmentProviderImpl) ParseEnvStr(key string) string {
+		var (
+				count  int
+				mapper = make(map[string]string)
+		)
+		for strings.Contains(key, "${") && strings.Contains(key, "}") {
+				arr := strings.SplitN(key, "${", -1)
+				for _, ky := range arr {
+						if strings.Contains(ky, "}") {
+								vars := strings.SplitN(ky, "}", 1)
+								k := "${" + vars[0] + "}"
+								val := this.Get(vars[0])
+								if _, ok := mapper[k]; ok {
+										if count > 1 {
+												return key
+										}
+										continue
+								}
+								mapper[k] = val
+								if val != "" {
+										key = strings.Replace(key, k, val, -1)
+								}
+						}
+				}
+				count++
+		}
+		return key
+}
+
 // env文件获取
 func (this *EnvironmentProviderImpl) file(root string, mode string) string {
 		var (
@@ -297,7 +327,7 @@ func (this *EnvironmentProviderImpl) getEnvMapper(file string) map[string]string
 				loader = Libs.NewViperLoader()
 		)
 		loader.Mapper.SetConfigFile(file)
-		loader.Mapper.SetConfigType(".env")
+		loader.Mapper.SetConfigType(EnvFileType)
 		if err := loader.Mapper.ReadInConfig(); err != nil {
 				return mapper
 		}
@@ -341,14 +371,17 @@ func (this *EnvironmentProviderImpl) loaderBootPrepare() {
 }
 
 func (this *EnvironmentProviderImpl) Set(key string, value string) {
+		key = strings.ToLower(key)
 		this.manager.Storage.Set(key, value)
 }
 
 func (this *EnvironmentProviderImpl) Get(key string, defaults ...string) string {
+		key = strings.ToLower(key)
 		v := this.manager.Storage.GetStr(key, defaults...)
 		if v == "" {
 				v = os.Getenv(key)
 				if v != "" {
+						v = this.real(v)
 						this.manager.Storage.Set(key, v)
 				}
 				return v
@@ -358,6 +391,10 @@ func (this *EnvironmentProviderImpl) Get(key string, defaults ...string) string 
 
 func (this *EnvironmentProviderImpl) String() string {
 		return this.Name
+}
+
+func (this *EnvironmentProviderImpl) real(v string) string {
+		return this.ParseEnvStr(v)
 }
 
 // 获取
