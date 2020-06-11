@@ -421,6 +421,9 @@ func (this *HashMapperStrKeyEntry) GetStr(key string, defaults ...string) string
 
 // 设置节点
 func (this *HashMapperStrKeyEntry) Set(key string, value interface{}) {
+		if v, ok := value.(string); ok {
+				_ = os.Setenv(key, v)
+		}
 		keys := strings.SplitN(key, ".", -1)
 		index, end, exists := this.find(keys)
 		if index == -1 && len(keys) == 1 {
