@@ -27,6 +27,7 @@ const (
 		// userPropsKey           = "userProperties"
 		coreProviderNum = "coreProviderNum"
 		ctrlChan        = "appCtrlChan"
+		BasePath        = "BasePath"
 		StartEv         = "started"
 		StopEv          = "stoped"
 )
@@ -398,7 +399,7 @@ func (this *ApplicationImpl) Singleton(id string, factory func(Contracts.Applica
 // ioc 容器
 func (this *ApplicationImpl) iocInitFactory() {
 		if this.container == nil {
-				this.container = Containerof()
+				this.container = ContainerOf()
 		}
 		// 注入app自身
 		this.container.Bind(AppContainer, this)

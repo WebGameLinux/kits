@@ -24,13 +24,13 @@ type ApplicationProps struct {
 const (
 		appName        = "app"
 		appVersionName = "1.0.0"
-		RunModeDev     = "dev"
-		RunModeTest    = "test"
-		RunModeLocal   = "local"
-		RunModelProd   = "prod"
-		RunModelStag   = "stg"
-		RunModelEnv    = "RunMode"
 		ConfigDirEnv   = "ConfigDir"
+		RunModeDev     = Contracts.RunModeDev
+		RunModeTest    = Contracts.RunModeTest
+		RunModeLocal   = Contracts.RunModeLocal
+		RunModeProd    = Contracts.RunModeProd
+		RunModeStag    = Contracts.RunModeStag
+		RunModeEnv     = Contracts.RunModeEnv
 )
 
 var (
@@ -39,8 +39,8 @@ var (
 				RunModeDev,
 				RunModeTest,
 				RunModeLocal,
-				RunModelProd,
-				RunModelStag,
+				RunModeProd,
+				RunModeStag,
 		}
 )
 
@@ -93,11 +93,11 @@ func (this *ApplicationProps) initKeyValues() {
 
 func (this *ApplicationProps) getCurrentDir() string {
 		dir, _ := filepath.Abs(".")
-		return filepath.Dir(dir)
+		return dir
 }
 
 func (this *ApplicationProps) getCurrentMode() string {
-		mode := os.Getenv(RunModelEnv)
+		mode := os.Getenv(RunModeEnv)
 		if mode == "" {
 				return RunModeDev
 		}

@@ -2,7 +2,9 @@ package Components
 
 import (
 		"github.com/webGameLinux/kits/Contracts"
+		"github.com/webGameLinux/kits/Libs"
 		"os"
+		"path/filepath"
 		"strings"
 		"sync"
 )
@@ -37,7 +39,23 @@ type EnvironmentProviderImpl struct {
 		bean    Contracts.SupportInterface
 		clazz   Contracts.ClazzInterface
 		app     Contracts.ApplicationContainer
+		Name    string
 }
+
+type EnvironmentRegisterAfterFunc func(EnvironmentProvider)
+type EnvironmentBootPrepareFunc func(Contracts.ApplicationContainer)
+type EnvironmentFileLoaderFunc func(string) map[string]string
+
+const (
+		EnvironmentAlias                 = "env"
+		EnvironmentLock                  = "env_lock"
+		EnvFileDefault                   = ".env"
+		EnvFileExt                       = ".env"
+		EnvironmentFileLoader            = "EnvironmentFileLoader"
+		EnvironmentProviderClass         = "EnvironmentProvider"
+		EnvironmentProviderBootPrepare   = "EnvironmentProviderBootPrepare"
+		EnvironmentProviderRegisterAfter = "EnvironmentProviderRegisterAfter"
+)
 
 func HashIndexOf(index, end int, exists bool) *HashIndex {
 		var hashIndex = new(HashIndex)
@@ -72,6 +90,7 @@ var (
 
 func environmentProviderNew() {
 		environment = new(EnvironmentProviderImpl)
+		environment.Name = EnvironmentProviderClass
 }
 
 func EnvironmentProviderOf() EnvironmentProvider {
@@ -141,12 +160,184 @@ func (this *EnvironmentProviderImpl) GetSupportBean() Contracts.SupportInterface
 func (this *EnvironmentProviderImpl) Register() {
 		// register env instance
 		this.app.Bind(this.String(), this.manager)
-		this.app.Bind("env", this)
+		this.app.Bind(EnvironmentAlias, this)
+		this.registerAfter()
 }
 
 func (this *EnvironmentProviderImpl) Boot() {
 		// load env file
+		this.loaderBootPrepare()
+		this.loadEnvFile()
 		// 监听 配置服务
+}
+
+func (this *EnvironmentProviderImpl) registerAfter() {
+		afters := this.app.Get(EnvironmentProviderRegisterAfter)
+		if afters == nil {
+				return
+		}
+		if fn, ok := afters.(EnvironmentRegisterAfterFunc); ok {
+				fn(this)
+				return
+		}
+		if fn, ok := afters.(func(EnvironmentProvider)); ok {
+				fn(this)
+				return
+		}
+		if items, ok := afters.([]EnvironmentRegisterAfterFunc); ok {
+				for _, fn := range items {
+						fn(this)
+				}
+				return
+		}
+		if items, ok := afters.([]func(EnvironmentProvider)); ok {
+				for _, fn := range items {
+						fn(this)
+				}
+				return
+		}
+}
+
+func (this *EnvironmentProviderImpl) loadEnvFile() {
+		lock := this.app.Get(EnvironmentLock)
+		if b, ok := lock.(bool); ok && b {
+				return
+		}
+		loader := this.getEnvFileLoader()
+		if loader == nil {
+				return
+		}
+		file := this.getEnvFile()
+		if file == "" {
+				return
+		}
+		mapper := loader(file)
+		if len(mapper) == 0 {
+				return
+		}
+		for key, v := range mapper {
+				this.Set(key, v)
+		}
+		this.app.Bind(EnvironmentLock, true)
+}
+
+func (this *EnvironmentProviderImpl) getEnvFile() string {
+		basePath := this.app.GetProfile(Contracts.BasePath)
+		if basePath == nil {
+				basePath, _ = filepath.Abs(".")
+		}
+		if path, ok := basePath.(string); ok {
+				mode := this.app.GetProfile(Contracts.RunModeEnv)
+				if mode == nil {
+						return path + string(filepath.Separator) + EnvFileExt
+				}
+				if m, ok := mode.(string); ok {
+						return this.file(path, m)
+				}
+		}
+		return EnvFileDefault
+}
+
+// env文件获取
+func (this *EnvironmentProviderImpl) file(root string, mode string) string {
+		var (
+				file = root + string(filepath.Separator) + mode
+		)
+		switch mode {
+		case Contracts.RunModeLocal:
+				fallthrough
+		case Contracts.RunModeStag:
+				fallthrough
+		case Contracts.RunModeTest:
+				fallthrough
+		case Contracts.RunModeDev:
+				fallthrough
+		case Contracts.RunModeProd:
+		default:
+				if state, err := os.Stat(file + EnvFileExt); err == nil {
+						if !state.IsDir() {
+								return file + EnvFileExt
+						}
+				}
+				return EnvFileDefault
+		}
+		// mode env
+		if state, err := os.Stat(file + EnvFileExt); err == nil {
+				if !state.IsDir() {
+						return file + EnvFileExt
+				}
+		}
+		// mode dir env
+		if state, err := os.Stat(file + string(filepath.Separator) + EnvFileExt); err == nil {
+				if !state.IsDir() {
+						return file + string(filepath.Separator) + EnvFileExt
+				}
+		}
+		// .env
+		return EnvFileDefault
+}
+
+func (this *EnvironmentProviderImpl) getEnvFileLoader() EnvironmentFileLoaderFunc {
+		loader := this.app.Get(EnvironmentFileLoader)
+		if loader == nil {
+				return this.getEnvMapper
+		}
+		if fn, ok := loader.(EnvironmentFileLoaderFunc); ok {
+				return fn
+		}
+		if fn, ok := loader.(func(string) map[string]string); ok {
+				return fn
+		}
+		return this.getEnvMapper
+}
+
+func (this *EnvironmentProviderImpl) getEnvMapper(file string) map[string]string {
+		var (
+				mapper = make(map[string]string)
+				loader = Libs.NewViperLoader()
+		)
+		loader.Mapper.SetConfigFile(file)
+		loader.Mapper.SetConfigType(".env")
+		if err := loader.Mapper.ReadInConfig(); err != nil {
+				return mapper
+		}
+		loader.Foreach(func(k, v interface{}) bool {
+				if key, ok := k.(string); ok {
+						if value, ok := v.(string); ok {
+								mapper[key] = value
+						}
+				}
+				return true
+		})
+		return mapper
+}
+
+func (this *EnvironmentProviderImpl) loaderBootPrepare() {
+		prepares := this.app.Get(EnvironmentProviderBootPrepare)
+		if prepares == nil {
+				return
+		}
+		if fn, ok := prepares.(EnvironmentBootPrepareFunc); ok {
+				fn(this.app)
+				return
+		}
+		if fn, ok := prepares.(func(Contracts.ApplicationContainer)); ok {
+				fn(this.app)
+				return
+		}
+
+		if items, ok := prepares.([]EnvironmentBootPrepareFunc); ok {
+				for _, fn := range items {
+						fn(this.app)
+				}
+				return
+		}
+		if items, ok := prepares.([]func(Contracts.ApplicationContainer)); ok {
+				for _, fn := range items {
+						fn(this.app)
+				}
+				return
+		}
 }
 
 func (this *EnvironmentProviderImpl) Set(key string, value string) {
@@ -166,7 +357,7 @@ func (this *EnvironmentProviderImpl) Get(key string, defaults ...string) string 
 }
 
 func (this *EnvironmentProviderImpl) String() string {
-		return "EnvironmentProvider"
+		return this.Name
 }
 
 // 获取
@@ -182,7 +373,6 @@ func (this *HashMapperStrKeyEntry) Get(key string) interface{} {
 
 // 获取值
 func (this *HashMapperStrKeyEntry) get(keys []string, indexHash *HashIndex) interface{} {
-
 		var (
 				current interface{}
 				index   = indexHash.Index

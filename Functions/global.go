@@ -11,41 +11,6 @@ import (
 		"time"
 )
 
-func init() {
-
-}
-
-// 获取容器中的服务
-func App(key string) interface{} {
-		var obj = Supports.App().Get(key)
-		if obj == nil {
-				return nil
-		}
-		return obj
-}
-
-// 配置服务
-func Config() Components.GetterInterface {
-		var config = App("config")
-		if config == nil {
-				return nil
-		}
-		if conf, ok := config.(Components.GetterInterface); ok {
-				return conf
-		}
-		return nil
-}
-
-// 获取配置
-func CnfKv(key string, defaults ...interface{}) interface{} {
-		return Config().Any(key, defaults...)
-}
-
-// 容器服务
-func AppContainer() Contracts.ApplicationContainer {
-		return App("app").(Contracts.ApplicationContainer)
-}
-
 // 是否实现某个接口
 // obj any
 // face new(Interface)
@@ -66,17 +31,31 @@ func Bootstrap(apps ...Contracts.ApplicationContainer) {
 		if app == nil {
 				app = AppContainer()
 		}
+		InitRegister(app)
+		InitProviders(app)
+		InitBootstrapper(app)
+		InitAppProperties(app)
+}
+
+// 初始化 provider
+func InitProviders(app Contracts.ApplicationContainer)  {
+		app.Register(Schemas.IrisHttpServerOf())
+		app.Register(Components.SchemaServiceProviderOf())
+}
+
+// 初始化引导
+func InitBootstrapper(app Contracts.ApplicationContainer)  {
 		bootstrapper := GetBootstrap(app)
 		if bootstrapper == nil {
 				bootstrapper = Components.AppBootstrapperOf()
 		}
-		InitAppProperties(app)
 		// bootstrapper.Add(Components.SchemaServiceProviderOf().(Components.Bootstrapper))
-		app.Register(Components.SchemaServiceProviderOf())
-		app.Register(Schemas.IrisHttpServerOf())
+}
+
+// 注册相关函数和对象
+func InitRegister(app Contracts.ApplicationContainer)  {
 		app.Bind(Components.ConfigureLoaderName, Components.ViperConfigLoader)
 		app.Bind(Schemas.IrisConfigurationProviderBootPrepares, RegisterOnInterrupt)
-
 }
 
 // 初始化应用相关 属性配置

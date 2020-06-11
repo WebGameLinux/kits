@@ -30,7 +30,7 @@ var (
 )
 
 const (
-		HelpStop = "_stop"
+		HelpStop = Contracts.HelpStop
 )
 
 func AppBasePropertiesOf() *Properties {

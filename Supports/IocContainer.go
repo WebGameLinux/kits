@@ -86,7 +86,7 @@ func Entry(v interface{}) (*entry, bool) {
 }
 
 // 容器
-func Containerof(items ...*entry) ContainerApp {
+func ContainerOf(items ...*entry) ContainerApp {
 	var container = new(ContainerImpl)
 	if len(items) > 0 {
 		for _, item := range items {
