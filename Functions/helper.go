@@ -30,7 +30,7 @@ func AppContainer() Contracts.ApplicationContainer {
 
 // 配置服务
 func Config() Components.GetterInterface {
-		var config = App("config")
+		var config = App(Components.ConfigureProviderClass)
 		if config == nil {
 				return nil
 		}

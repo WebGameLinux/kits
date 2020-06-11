@@ -540,6 +540,10 @@ func (this *ApplicationImpl) StarUp() {
 								return
 						}
 				case <-ticker.C:
+						health := this.Get("health")
+						if fn, ok := health.(func()); ok {
+								fn()
+						}
 				}
 		}
 }

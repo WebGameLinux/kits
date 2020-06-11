@@ -160,8 +160,8 @@ func (this *EnvironmentProviderImpl) GetSupportBean() Contracts.SupportInterface
 
 func (this *EnvironmentProviderImpl) Register() {
 		// register env instance
-		this.app.Bind(this.String(), this.manager)
-		this.app.Bind(EnvironmentAlias, this)
+		this.app.Bind(this.String(), this)
+		this.app.Bind(EnvironmentAlias, this.manager)
 		this.registerAfter()
 }
 
@@ -248,7 +248,7 @@ func (this *EnvironmentProviderImpl) ParseEnvStr(key string) string {
 				arr := strings.SplitN(key, "${", -1)
 				for _, ky := range arr {
 						if strings.Contains(ky, "}") {
-								vars := strings.SplitN(ky, "}", 1)
+								vars := strings.SplitN(ky, "}", 2)
 								k := "${" + vars[0] + "}"
 								val := this.Get(vars[0])
 								if _, ok := mapper[k]; ok {
@@ -386,7 +386,11 @@ func (this *EnvironmentProviderImpl) Get(key string, defaults ...string) string 
 				}
 				return v
 		}
-		return ""
+		if r := this.real(v); r != v {
+				this.manager.Storage.Set(key, v)
+				return r
+		}
+		return v
 }
 
 func (this *EnvironmentProviderImpl) String() string {
@@ -420,6 +424,12 @@ func (this *HashMapperStrKeyEntry) get(keys []string, indexHash *HashIndex) inte
 				return nil
 		}
 		current = this.container[index]
+		if len(keys) == 1 {
+				if entry, ok := current.(*StrKeyEntry); ok {
+						return entry.Value
+				}
+				return nil
+		}
 		for i, key := range keys[1:] {
 				if i >= end-1 {
 						if entry, ok := current.(*StrKeyEntry); ok {
@@ -533,6 +543,21 @@ func (this *HashMapperStrKeyEntry) find(scopes []string) (int, int, bool) {
 								}
 								container = mapper.container[v].Value
 								index = v
+								if i+1 <= count {
+										i++
+								}
+						}
+				case HashMapperStrKeyEntry:
+						if mapper, ok := container.(HashMapperStrKeyEntry); ok {
+								v := mapper.Index(key)
+								if v == -1 {
+										return -1, i, false
+								}
+								container = mapper.container[v].Value
+								index = v
+								if i+1 <= count {
+										i++
+								}
 						}
 				case *StrKeyEntry:
 						if entry, ok := container.(*StrKeyEntry); ok {
@@ -540,15 +565,41 @@ func (this *HashMapperStrKeyEntry) find(scopes []string) (int, int, bool) {
 										return index, i, false
 								}
 								container = entry.Value
-								if i >= count {
+								if i+1 <= count {
+										i++
+								}
+						}
+				case []*StrKeyEntry:
+						if entry, ok := container.([]*StrKeyEntry); ok {
+								for num, it := range entry {
+										if it.Key == key {
+												container = it.Value
+												if count == 1 {
+														index = num
+														i = 1
+												}
+												if count > 1 {
+														i++
+												}
+												break
+										}
+								}
+						}
+				case StrKeyEntry:
+						if entry, ok := container.(StrKeyEntry); ok {
+								if entry.Key != key {
+										return index, i, false
+								}
+								container = entry.Value
+								if i+1 <= count {
 										i++
 								}
 						}
 				default:
-						return index, i, false
+						return index, i, i >= count
 				}
 		}
-		return index, i, i > count
+		return index, i, i >= count
 }
 
 // 遍历

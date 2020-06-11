@@ -6,6 +6,7 @@ import (
 		"github.com/webGameLinux/kits/Contracts"
 		"github.com/webGameLinux/kits/Libs"
 		"io"
+		"os"
 		"path/filepath"
 		"strings"
 		"sync"
@@ -683,7 +684,24 @@ func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 		// 文件读取器
 		if paths, ok := app.GetProfile("App.Properties.Paths").([]string); ok {
-				Libs.NewViperLoader(paths).CopyTo(config)
+				loader := Libs.NewViperLoader()
+				for _, path := range paths {
+						state, err := os.Stat(path)
+						if err != nil || !state.IsDir() {
+								continue
+						}
+						_ = filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+								if !info.IsDir() {
+										if strings.Contains(path, info.Name()) {
+												_ = getFileConfigure(config, loader, "", path)
+										} else {
+												_ = getFileConfigure(config, loader, path, info.Name())
+										}
+								}
+								return nil
+						})
+				}
+
 		}
 		if files, ok := app.GetProfile("App.Properties.files").([]string); ok {
 				for _, file := range files {
@@ -714,10 +732,8 @@ func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer)
 										file = abs + string(filepath.Separator) + file
 								}
 						}
-						LoggerProviderOf().Info("config loader file :" + file)
-						loader.Mapper.SetConfigFile(file)
-						loader.Mapper.SetConfigType(filepath.Ext(file))
-						loader.CopyTo(config)
+
+						_ = getFileConfigure(config, loader, "", file)
 
 				}
 		}
@@ -751,4 +767,28 @@ func GetScope(name string) string {
 				}
 		}
 		return name
+}
+
+func getFileConfigure(config interface{}, loader *Libs.ConfigureViperLoader, path string, filename string) error {
+		var (
+				fs  = filename
+				ext = ""
+		)
+		if path != "" {
+				fs = path + string(filepath.Separator) + filename
+		}
+		LoggerProviderOf().Info("config loader file :" + fs)
+		if strings.Contains(fs, string(filepath.Separator)) {
+				arr := strings.SplitN(fs, string(filepath.Separator), -1)
+				ext = strings.Replace(filepath.Ext(arr[len(arr)-1]), ".", "", -1)
+		} else {
+				ext = strings.Replace(filepath.Ext(fs), ".", "", -1)
+		}
+		loader.Mapper.SetConfigFile(fs)
+		loader.Mapper.SetConfigType(ext)
+		if err := loader.Mapper.ReadInConfig(); err != nil {
+				return err
+		}
+		loader.CopyTo(config)
+		return nil
 }
