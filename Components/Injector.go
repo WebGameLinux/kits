@@ -17,7 +17,7 @@ type Injector struct {
 
 var (
 		DefaultInjectorTags = []string{
-				"json", "inject", "mapstructure", "toml",
+				"json", "inject", "mapstructure", "toml","xml",
 				"yml", "ini", "env", "service", "class", "var", "head", "key",
 		}
 )
@@ -135,7 +135,7 @@ func (this *Injector) Decode(input, output interface{}, tag ...string) error {
 		return decoder.Decode(input)
 }
 
-func (this *Injector) Values(obj interface{}) map[string][]string {
+func (this *Injector) Keys(obj interface{}) map[string][]string {
 		if !structs.IsStruct(obj) {
 				return nil
 		}

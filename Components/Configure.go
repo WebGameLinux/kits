@@ -6,6 +6,7 @@ import (
 		"github.com/webGameLinux/kits/Contracts"
 		"github.com/webGameLinux/kits/Libs"
 		"io"
+		"path/filepath"
 		"strings"
 		"sync"
 )
@@ -169,7 +170,7 @@ func (this *ConfigureProviderImpl) Search(search func(k, v, matches interface{})
 func (this *ConfigureProviderImpl) Inject(scope string, obj interface{}, tags ...string) bool {
 		var (
 				injector = NewInjector(tags...)
-				tagArr   = injector.Values(obj)
+				tagArr   = injector.Keys(obj)
 		)
 		if tagArr == nil || len(tagArr) == 0 {
 				return false
@@ -658,7 +659,7 @@ func (this *ConfigLoaderParamsImpl) Load(Cnf Configuration) {
 // 获取配置读取方式
 func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 		// 文件读取器
-		if files, ok := app.GetProfile("AppFile.Properties.files").([]string); ok {
+		if files, ok := app.GetProfile("App.Properties.files").([]string); ok {
 				for _, fs := range files {
 						scope := GetScope(fs)
 						if prop, err := kvs.ReadProperties(GetFileReader(fs)); err == nil {
@@ -669,7 +670,7 @@ func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 				}
 		}
 		// 读取器
-		if reader, ok := app.GetProfile("AppFile.Properties.Reader").(io.Reader); ok {
+		if reader, ok := app.GetProfile("App.Properties.Reader").(io.Reader); ok {
 				if prop, err := kvs.ReadProperties(reader); err == nil {
 						for k, v := range prop.Values {
 								config.Add(k, v)
@@ -681,18 +682,47 @@ func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 // 毒蛇加载器 读取配置
 func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 		// 文件读取器
-		if paths, ok := app.GetProfile("AppFile.Properties.Paths").([]string); ok {
+		if paths, ok := app.GetProfile("App.Properties.Paths").([]string); ok {
 				Libs.NewViperLoader(paths).CopyTo(config)
 		}
-		if files, ok := app.GetProfile("AppFile.Properties.files").([]string); ok {
+		if files, ok := app.GetProfile("App.Properties.files").([]string); ok {
 				for _, file := range files {
+						jsonArg := strings.Contains(file, "{") && strings.Contains(file, "}")
+						if jsonArg {
+								loader := Libs.NewViperLoader(file)
+								loader.CopyTo(config)
+								continue
+						}
+						// tagArg eg: paths:[];;;
+						tagArg := strings.Contains(file, ":") && strings.Count(file, ":") > 2
+						if jsonArg {
+								loader := Libs.NewViperLoader(tagArg)
+								loader.CopyTo(config)
+								continue
+						}
 						loader := Libs.NewViperLoader()
+						if file == "." || file == ".." {
+								continue
+						}
+						if !filepath.IsAbs(file) {
+								root := app.GetProfile("BasePath")
+								file = strings.Replace(file, "./", "", 1)
+								if r, ok := root.(string); ok && filepath.IsAbs(r) {
+										file = r + string(filepath.Separator) + file
+								} else {
+										abs, _ := filepath.Abs(".")
+										file = abs + string(filepath.Separator) + file
+								}
+						}
+						LoggerProviderOf().Info("config loader file :" + file)
 						loader.Mapper.SetConfigFile(file)
+						loader.Mapper.SetConfigType(filepath.Ext(file))
 						loader.CopyTo(config)
+
 				}
 		}
 		// 读取器
-		if reader, ok := app.GetProfile("AppFile.Properties.Reader").(io.Reader); ok {
+		if reader, ok := app.GetProfile("App.Properties.Reader").(io.Reader); ok {
 				loader := Libs.NewViperLoader()
 				err := loader.Mapper.ReadConfig(reader)
 				if err == nil {

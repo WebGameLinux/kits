@@ -2,7 +2,6 @@ package Functions
 
 import (
 		stdContext "context"
-		"fmt"
 		"github.com/kataras/iris"
 		"github.com/webGameLinux/kits/Components"
 		"github.com/webGameLinux/kits/Contracts"
@@ -13,8 +12,7 @@ import (
 )
 
 func init() {
-		var props = Supports.ApplicationDefaultProps()
-		fmt.Println(props.GetArgs())
+
 }
 
 // 获取容器中的服务
@@ -66,17 +64,30 @@ func Bootstrap(apps ...Contracts.ApplicationContainer) {
 		}
 		app := apps[0]
 		if app == nil {
-				return
+				app = AppContainer()
 		}
 		bootstrapper := GetBootstrap(app)
 		if bootstrapper == nil {
 				bootstrapper = Components.AppBootstrapperOf()
 		}
+		InitAppProperties(app)
 		// bootstrapper.Add(Components.SchemaServiceProviderOf().(Components.Bootstrapper))
 		app.Register(Components.SchemaServiceProviderOf())
 		app.Register(Schemas.IrisHttpServerOf())
-		app.Bind(Schemas.IrisConfigurationProviderBootPrepares,RegisterOnInterrupt)
+		app.Bind(Components.ConfigureLoaderName, Components.ViperConfigLoader)
+		app.Bind(Schemas.IrisConfigurationProviderBootPrepares, RegisterOnInterrupt)
 
+}
+
+// 初始化应用相关 属性配置
+func InitAppProperties(app Contracts.ApplicationContainer) {
+		if loader, ok := app.(Contracts.PropertyLoaderInterface); ok {
+				props := Supports.AppBasePropertiesOf()
+				if !props.Inited() {
+						props.Init()
+				}
+				props.Foreach(props.Configure(loader))
+		}
 }
 
 // 获取 BootstrapProvider
@@ -85,9 +96,10 @@ func GetBootstrap(container Contracts.ApplicationContainer) Components.Bootstrap
 		if bootstrapper, ok := boot.(Components.BootstrapProvider); ok {
 				return bootstrapper
 		}
-		return nil
+		return Components.AppBootstrapperOf()
 }
 
+// 注册中断监听
 func RegisterOnInterrupt(app *iris.Application) {
 		iris.RegisterOnInterrupt(func() {
 				timeout := 5 * time.Second

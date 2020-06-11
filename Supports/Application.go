@@ -257,6 +257,13 @@ func (this *ApplicationImpl) reg(impl Contracts.RegisterInterface) {
 		this.properties.Store(coreRegistersInitCount, this.getInitCount(coreRegistersInitCount)+1)
 }
 
+// 属性加载器
+func (this *ApplicationImpl) PropertyLoader(loader func(p *sync.Map)) {
+		if loader != nil {
+				loader(this.properties)
+		}
+}
+
 // property
 func (this *ApplicationImpl) property(key string, defaultValue ...interface{}) interface{} {
 		var (
@@ -408,7 +415,7 @@ func (this *ApplicationImpl) propertiesInitFactory() {
 // 发送事件
 func (this *ApplicationImpl) Emit(event string, target interface{}) {
 		// @todo
-		fmt.Println(event,target)
+		fmt.Println(event, target)
 }
 
 // 获取当前register加载的位置
@@ -439,12 +446,8 @@ func (this *ApplicationImpl) LoadCoreProviders() {
 
 // 加载自定义 服务器提供器
 func (this *ApplicationImpl) LoadCustomProviders() {
-		index := this.getBootPointer()
-		registers := this.registers.Start(index)
-		registers.Foreach(this.foreachRegister())
-		index = this.getRegisterPointer()
-		boots := this.boots.Start(index)
-		boots.Foreach(this.foreachBoot())
+		this.registers.Foreach(this.foreachRegister())
+		this.boots.Foreach(this.foreachBoot())
 }
 
 // each register
@@ -453,6 +456,7 @@ func (this *ApplicationImpl) foreachRegister() func(key, value interface{}) bool
 				if reg, ok := value.(Contracts.RegisterInterface); ok {
 						this.reg(reg)
 				}
+				this.registers.OffsetUnset(key)
 				return true
 		}
 }
@@ -463,6 +467,7 @@ func (this *ApplicationImpl) foreachBoot() func(key, value interface{}) bool {
 				if boot, ok := value.(Contracts.BootInterface); ok {
 						this.boot(boot)
 				}
+				this.boots.OffsetUnset(key)
 				return true
 		}
 }
@@ -507,6 +512,12 @@ func (this *ApplicationImpl) StarUp() {
 				ch chan int
 		)
 		v := this.GetProfile(ctrlChan)
+		// 是否运行
+		stop := this.GetProfile(HelpStop)
+		if s, ok := stop.(bool); ok && s {
+				this.Stop()
+				return
+		}
 
 		if v == nil {
 				v = make(chan int, 2)
@@ -514,11 +525,10 @@ func (this *ApplicationImpl) StarUp() {
 		if ch, ok = v.(chan int); ok {
 				this.properties.Store(ctrlChan, ch)
 		}
-
-		// 注册用户自定义的 providers
+		//  providers
 		this.providersInit()
 		this.Emit(StartEv, ch)
-		ticker:=time.NewTicker(3 * time.Second)
+		ticker := time.NewTicker(3 * time.Second)
 		// 等待结束
 		for {
 				select {

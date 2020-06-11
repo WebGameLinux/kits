@@ -1,6 +1,9 @@
 package Contracts
 
-import "fmt"
+import (
+		"fmt"
+		"sync"
+)
 
 type Application interface {
 		InitFn()
@@ -86,4 +89,8 @@ type Starter interface {
 type SupportInterface interface {
 		HasBoot() bool
 		HasRegister() bool
+}
+
+type PropertyLoaderInterface interface {
+		PropertyLoader(func(*sync.Map))
 }

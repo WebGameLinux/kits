@@ -353,6 +353,13 @@ func (this *ViperInitParam) merge(param *ViperInitParam) {
 }
 
 func (this *ViperInitParam) kv(str string) {
+		// 多个使用 ; 分隔
+		if strings.Contains(str, ";") {
+				arr := strings.SplitN(str, ";", -1)
+				for _, it := range arr {
+						this.kv(it)
+				}
+		}
 		kvs := strings.SplitN(str, ":", 1)
 		if len(kvs) != 2 || kvs[1] == "" {
 				return
@@ -374,6 +381,26 @@ func (this *ViperInitParam) kv(str string) {
 				if this.EnvPrefix == "" {
 						this.EnvPrefix = kvs[1]
 				}
+		case "remote.provider":
+				if this.Remote == nil {
+						this.Remote = ViperRemoteSourceOf()
+				}
+				this.Remote.Set("provider", kvs[1])
+		case "remote.path":
+				if this.Remote == nil {
+						this.Remote = ViperRemoteSourceOf()
+				}
+				this.Remote.Set("path", kvs[1])
+		case "remote.endpoint":
+				if this.Remote == nil {
+						this.Remote = ViperRemoteSourceOf()
+				}
+				this.Remote.Set("endpoint", kvs[1])
+		case "remote.secret_keyring":
+				if this.Remote == nil {
+						this.Remote = ViperRemoteSourceOf()
+				}
+				this.Remote.Set("secret_keyring", kvs[1])
 		}
 }
 
