@@ -1,0 +1,106 @@
+namespace(config/database) {
+
+    data(gorm){
+        properties : {
+           name : ${name};
+           user : $fn.echo(args=$data.namespace(name=config/database)::clazz);
+           time : $fn.time();
+           arr : ["1","2","3"];
+           mapper : {
+                  ${name} : 123;
+                  bool : true;
+                  array : [];
+                  address : $data.namespace(name=config.database)(address=广州,count=天河);
+                  refs: [$get.namespace(name=config.database)];
+           }
+        }
+    }
+
+    data(orm){
+
+            import : {
+               '/usr/data/base.data',
+               '/user/base/class.data'
+            }
+
+            plugins : {
+                rpc : {
+                    "rpc://$(get.namespace(name=config.rpc.plugins).math)"
+                }
+            }
+
+            properties : {
+               _name : ${name};
+               user : $fn.string(args=$data.namespace(name=config/database)::clazz);
+               age : $fn.int(args=$data.namespace(name=config/database).age);
+               time : $fn.time;
+               object : $data.namespace(name=base/info);
+               arr : ["1","2","3"];
+               mapper : {
+                      ${name} : 123;
+                      bool : true;
+                      array : [];
+                      address : $data.namespace(name=config.database)(address=广州,count=天河);
+                      refs: [$get.namespace(name=config.database)];
+               }
+            }
+
+            env {
+                export {
+                    @gorm_user_name : $this.name
+                }
+                default {
+                    database : mysql
+                }
+            }
+
+            api {
+               path : "/${this.namespace}/orm/info",
+               params : {
+                    username : string
+               },
+               docs : "
+                 #show orm config
+               "
+               extrasDocs : $url.string("https://www.hson.com/extrasDocs")
+            }
+    }
+
+
+    data(query){
+
+            import : {
+               '/usr/data/base.data',
+               '/user/base/class.data'
+            }
+
+            plugins : {
+                rpc : {
+                    "rpc://$(get.namespace(name=config.rpc.plugins).math)"
+                }
+            }
+
+            properties : $fn.query(sql="select * form user where id>:id limit 1",bind={':id':$arg.id})
+
+            env {
+                export {
+                    @gorm_user_name : $this.name
+                }
+                default {
+                    database : mysql
+                }
+            }
+
+            api {
+               path : "/${this.namespace}/orm/info",
+               params : {
+                    id : int
+               },
+               docs : "
+                 #show orm config
+               "
+               extrasDocs : $url.string("https://www.hson.com/extrasDocs")
+            }
+    }
+
+}

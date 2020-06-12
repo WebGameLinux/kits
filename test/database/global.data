@@ -1,0 +1,12 @@
+global {
+    plugin : {
+        rpc : {
+           "rpc://$(get.namespace(name=config.rpc.plugins).math)",
+           "rpc://$(get.namespace(name=config.rpc.plugins).math)",
+        }
+    }
+    import : {
+        '/data/base/*.data',
+        '/data/info/config.data',
+    }
+}

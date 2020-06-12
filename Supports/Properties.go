@@ -16,6 +16,7 @@ type Properties struct {
 		init        bool
 		commandStop bool
 		options     map[string]map[string]string
+		cache       map[string]string
 }
 
 var (
@@ -55,7 +56,27 @@ func (this *Properties) GetReader() io.Reader {
 }
 
 func (this *Properties) Keys() []string {
-		return []string{"reader", "appFile", "paths", "cStop"}
+		var (
+				defaults = []string{"reader", "appFile", "paths", "cStop"}
+				mapper   = this.GetOptions()
+		)
+		if len(mapper) != 0 {
+				var keys []string
+				for key, _ := range mapper {
+						keys = append(keys, key)
+				}
+				return keys
+		}
+		return defaults
+}
+
+func (this *Properties) get(key string) string {
+		for k, v := range this.GetOptions() {
+				if k == key || strings.EqualFold(key, k) {
+						return v
+				}
+		}
+		return ""
 }
 
 func (this *Properties) Values() []interface{} {
@@ -109,6 +130,9 @@ func (this *Properties) Get(key string) interface{} {
 		case "cStop":
 		case HelpStop:
 				return this.commandStop
+		}
+		if v := this.get(key); v != "" {
+				return v
 		}
 		return nil
 }
@@ -191,6 +215,7 @@ func (this *Properties) initEnv() {
 
 func (this *Properties) initArgs() {
 		this.parse()
+
 		for key, val := range this.GetOptions() {
 				this.set(key, val)
 		}
@@ -288,14 +313,17 @@ func (this *Properties) With(key string) string {
 }
 
 func (this *Properties) GetOptions() map[string]string {
-		var mapper = make(map[string]string)
-		for k, m := range this.options {
-				for _, v := range m {
-						mapper[k] = v
-						break
+		if this.cache == nil || len(this.cache) == 0 {
+				var mapper = make(map[string]string)
+				for k, m := range this.options {
+						for _, v := range m {
+								mapper[k] = v
+								break
+						}
 				}
+				this.cache = mapper
 		}
-		return mapper
+		return this.cache
 }
 
 func (this *Properties) Configure(loaderInterface Contracts.PropertyLoaderInterface) func(k string, v interface{}) bool {
@@ -335,7 +363,7 @@ func (this *Properties) parse() {
 				}
 				val = ""
 				if strings.Contains(arg, "=") {
-						arr := strings.SplitN(arg, "=", 1)
+						arr := strings.SplitN(arg, "=", 2)
 						arg = arr[0]
 						if len(arr) >= 2 {
 								val = arr[1]
