@@ -9,4 +9,5 @@ const (
 		RunModeLocal = "local"
 		RunModeProd  = "prod"
 		RunModeStag  = "stg"
+		ArgRunMode   = "mode"
 )

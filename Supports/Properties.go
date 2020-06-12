@@ -26,6 +26,7 @@ var (
 				"appFile": {"-f", "--file", "-c", "@tip:主配置文件 @eg:-f /path/app.properties "},
 				"paths":   {"-p", "--paths", "@tip:配置目录 @eg:--paths=/paths,/path2"},
 				"reader":  {"-r", "--reader", "@tip:读取器 @eg: --reader=/paths/a.ini"},
+				"mode":    {"-m", "--mode", "@tip:运行环境 @eg: --mode=test"},
 				"help":    {"-h", "--help", "@@"},
 		}
 )
@@ -332,6 +333,10 @@ func (this *Properties) Configure(loaderInterface Contracts.PropertyLoaderInterf
 						return false
 				}
 				loaderInterface.PropertyLoader(func(s *sync.Map) {
+						if k == Contracts.ArgRunMode && IsSupportMode(v) {
+								s.Store(Contracts.RunModeEnv, strings.ToLower(v.(string)))
+								return
+						}
 						s.Store(k, v)
 				})
 				return true
@@ -474,4 +479,26 @@ func ParseEnvStr(key string) string {
 				count++
 		}
 		return key
+}
+
+func IsSupportMode(v interface{}) bool {
+		var m string
+		if str, ok := v.(string); ok {
+				m = str
+		}
+		if str, ok := v.(*string); ok {
+				m = *str
+		}
+		if str, ok := v.(fmt.Stringer); ok {
+				m = str.String()
+		}
+		if m == "" {
+				return false
+		}
+		for _, mode := range supportRunModes {
+				if m == mode || strings.EqualFold(m, mode) {
+						return true
+				}
+		}
+		return false
 }
