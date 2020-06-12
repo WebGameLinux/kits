@@ -112,7 +112,65 @@ func (this *ConfigureProviderImpl) Bool(key string, defaults ...bool) bool {
 }
 
 func (this *ConfigureProviderImpl) Get(key string, defaults ...string) string {
-		return this.config().Get(key, defaults...)
+		return this.getReal(this.config().Get(key, defaults...))
+}
+
+func (this *ConfigureProviderImpl) getReal(v string) string {
+		if v == "" || (!strings.Contains(v, "$(") && !strings.Contains(v, ")")) {
+				return v
+		}
+		return this.getEnvReal(v)
+}
+
+func (this *ConfigureProviderImpl) getEnvReal(key string) string {
+		var (
+				count  int
+				mapper = make(map[string]string)
+		)
+		for strings.Contains(key, "$(") && strings.Contains(key, ")") {
+				arr := strings.SplitN(key, "$(", -1)
+				for _, ky := range arr {
+						if strings.Contains(ky, ")") {
+								vars := strings.SplitN(ky, ")", 2)
+								k := "$(" + vars[0] + ")"
+								val := this.env(vars[0])
+								if _, ok := mapper[k]; ok {
+										if count > 1 {
+												return key
+										}
+										continue
+								}
+								mapper[k] = val
+								if val != "" {
+										key = strings.Replace(key, k, val, -1)
+								}
+						}
+				}
+				count++
+		}
+		return key
+}
+
+func (this *ConfigureProviderImpl) env(key string) string {
+		if key == " " || key == "" {
+				return key
+		}
+		if strings.Contains(key, "|") && strings.Count(key, "|") == 1 {
+				values := strings.SplitN(key, "|", 2)
+				if values[0] == "" {
+						return ""
+				}
+				return this.getEnvProvider().Get(strings.TrimSpace(values[0]), values[1])
+		}
+		return this.getEnvProvider().Get(key)
+}
+
+func (this *ConfigureProviderImpl) getEnvProvider() EnvironmentProvider {
+		env := this.app.Get(EnvironmentProviderClass)
+		if provider, ok := env.(EnvironmentProvider); ok {
+				return provider
+		}
+		return EnvironmentProviderOf()
 }
 
 func (this *ConfigureProviderImpl) IntArray(key string, defaults ...[]int) []int {
@@ -213,7 +271,7 @@ func (this *ConfigureProviderImpl) getScopes(root string, keys interface{}) (map
 						}
 				}
 		}
-		return mapper, ""
+		return mapper, tag
 }
 
 // 批量获取
@@ -230,7 +288,15 @@ func (this *ConfigureProviderImpl) getScopesByArr(root string, keys []string) (m
 				}
 				val := this.Any(key)
 				if val == nil {
-						continue
+						// 忽略大小写
+						lower := strings.ToLower(key)
+						if lower == key {
+								continue
+						}
+						val = this.Any(lower)
+						if val == nil {
+								continue
+						}
 				}
 				mapper[k] = val
 		}
@@ -334,12 +400,14 @@ func (this *Configure) Get(key string, defaults ...string) string {
 				defaults = append(defaults, "")
 		}
 		v := this.Any(key, defaults[0])
-		// todo string
 		if n, ok := v.(string); ok {
 				return n
 		}
 		if str, ok := v.(fmt.Stringer); ok {
 				return str.String()
+		}
+		if n, ok := v.(*string); ok {
+				return *n
 		}
 		return defaults[0]
 }
@@ -660,7 +728,7 @@ func (this *ConfigLoaderParamsImpl) Load(Cnf Configuration) {
 // 获取配置读取方式
 func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 		// 文件读取器
-		if files, ok := app.GetProfile("App.Properties.files").([]string); ok {
+		if files, ok := app.GetProfile(Contracts.AppPropertiesFiles).([]string); ok {
 				for _, fs := range files {
 						scope := GetScope(fs)
 						if prop, err := kvs.ReadProperties(GetFileReader(fs)); err == nil {
@@ -671,7 +739,7 @@ func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 				}
 		}
 		// 读取器
-		if reader, ok := app.GetProfile("App.Properties.Reader").(io.Reader); ok {
+		if reader, ok := app.GetProfile(Contracts.AppPropertiesReader).(io.Reader); ok {
 				if prop, err := kvs.ReadProperties(reader); err == nil {
 						for k, v := range prop.Values {
 								config.Add(k, v)
@@ -682,8 +750,8 @@ func ConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
 
 // 毒蛇加载器 读取配置
 func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer) {
-		// 文件读取器
-		if paths, ok := app.GetProfile("App.Properties.Paths").([]string); ok {
+		// 文夹读取器
+		if paths, ok := app.GetProfile(Contracts.AppPropertiesPaths).([]string); ok {
 				loader := Libs.NewViperLoader()
 				for _, path := range paths {
 						state, err := os.Stat(path)
@@ -703,7 +771,8 @@ func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer)
 				}
 
 		}
-		if files, ok := app.GetProfile("App.Properties.files").([]string); ok {
+		// 多文件读取
+		if files, ok := app.GetProfile(Contracts.AppPropertiesFiles).([]string); ok {
 				for _, file := range files {
 						jsonArg := strings.Contains(file, "{") && strings.Contains(file, "}")
 						if jsonArg {
@@ -723,7 +792,7 @@ func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer)
 								continue
 						}
 						if !filepath.IsAbs(file) {
-								root := app.GetProfile("BasePath")
+								root := app.GetProfile(Contracts.AppBasePath)
 								file = strings.Replace(file, "./", "", 1)
 								if r, ok := root.(string); ok && filepath.IsAbs(r) {
 										file = r + string(filepath.Separator) + file
@@ -737,8 +806,8 @@ func ViperConfigLoader(config Configuration, app Contracts.ApplicationContainer)
 
 				}
 		}
-		// 读取器
-		if reader, ok := app.GetProfile("App.Properties.Reader").(io.Reader); ok {
+		// 单个读取器
+		if reader, ok := app.GetProfile(Contracts.AppPropertiesReader).(io.Reader); ok {
 				loader := Libs.NewViperLoader()
 				err := loader.Mapper.ReadConfig(reader)
 				if err == nil {
@@ -777,12 +846,18 @@ func getFileConfigure(config interface{}, loader *Libs.ConfigureViperLoader, pat
 		if path != "" {
 				fs = path + string(filepath.Separator) + filename
 		}
-		LoggerProviderOf().Info("config loader file :" + fs)
+
 		if strings.Contains(fs, string(filepath.Separator)) {
 				arr := strings.SplitN(fs, string(filepath.Separator), -1)
 				ext = strings.Replace(filepath.Ext(arr[len(arr)-1]), ".", "", -1)
 		} else {
 				ext = strings.Replace(filepath.Ext(fs), ".", "", -1)
+		}
+		if !filepath.IsAbs(fs) {
+				fs, _ = filepath.Abs(fs)
+		}
+		if Debug() {
+				LoggerProviderOf().Info("config loader file :" + fs)
 		}
 		loader.Mapper.SetConfigFile(fs)
 		loader.Mapper.SetConfigType(ext)

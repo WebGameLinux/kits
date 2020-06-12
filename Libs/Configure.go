@@ -195,6 +195,7 @@ func (this *ConfigureViperLoader) CopyTo(v interface{}) {
 						}
 						return true
 				})
+				return
 		}
 		if setter, ok := v.(SetterInterface); ok {
 				this.Foreach(func(k, v interface{}) bool {
@@ -203,12 +204,14 @@ func (this *ConfigureViperLoader) CopyTo(v interface{}) {
 						}
 						return true
 				})
+				return
 		}
 		if setter, ok := v.(SetterAnyInterface); ok {
 				this.Foreach(func(k, v interface{}) bool {
 						setter.Set(k, v)
 						return true
 				})
+				return
 		}
 }
 

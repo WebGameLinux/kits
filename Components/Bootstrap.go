@@ -86,14 +86,17 @@ func (this *appBootstrapper) Register() {
 		if !this.app.Exists(this.String()) {
 				this.app.Bind(this.String(), this)
 		}
-		// 初始化
+		// 初始化 用户自定义 bootstrapper 注入点
 		for _, boot := range this.GetBootstrapper() {
 				boot.Initializer(this.app)
 		}
 }
 
 func (this *appBootstrapper) Boot() {
+		// 遍历 用户自定义 bootstrapper.boot
 		this.Initializer(this.app)
+		// 释放bootstrapper
+		this.Lists = map[string]Bootstrapper{}
 }
 
 func (this *appBootstrapper) Booted() bool {

@@ -191,3 +191,13 @@ func MakeFiles(fs string, filter ...func(fs string) bool) []string {
 		}
 		return []string{fs}
 }
+
+// 是否debug
+func Debug() bool  {
+		value:=EnvironmentProviderOf().Get(Contracts.AppDebug,"false")
+		boolean :=BooleanOf(value)
+		if boolean.Invalid() {
+				return false
+		}
+		return boolean.ValueOf()
+}

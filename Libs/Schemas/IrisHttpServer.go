@@ -3,6 +3,7 @@ package Schemas
 import (
 		"fmt"
 		"github.com/kataras/iris"
+		"github.com/kataras/iris/core/host"
 		"github.com/webGameLinux/kits/Components"
 		"github.com/webGameLinux/kits/Contracts"
 		"strings"
@@ -10,11 +11,12 @@ import (
 )
 
 type irisHttpServer struct {
-		Name   string
-		Server *iris.Application
-		bean   Contracts.SupportInterface
-		app    Contracts.ApplicationContainer
-		clazz  Contracts.ClazzInterface
+		Name       string
+		irisServer *iris.Application
+		bean       Contracts.SupportInterface
+		app        Contracts.ApplicationContainer
+		clazz      Contracts.ClazzInterface
+		runner     iris.Runner
 }
 
 type PreparesFunc func(app *iris.Application)
@@ -28,9 +30,14 @@ type IrisConfigureProviderInterface interface {
 		GetConfig(Contracts.ApplicationContainer) iris.Configuration
 }
 
+type IrisHttpServerProvider interface {
+		Server() *iris.Application
+}
+
 var (
-		irisInstanceLock sync.Once
-		irisApp          *irisHttpServer
+		irisInstanceLock  sync.Once
+		irisApp           *irisHttpServer
+		defaultInjectTags = []string{"json", "toml", "yml"}
 )
 
 const (
@@ -39,12 +46,15 @@ const (
 		IrisAppState                          = "IrisInstanceState"
 		IrisConfigurationProvider             = "IrisConfigurationProvider"
 		IrisRegisterAfters                    = "IrisRegisterAfters"
+		IrisRunnerHostConfigurators           = "IrisRunnerHostConfigurators"
+		IrisConfigPrefixKey                   = "http.iris"
+		IrisRunner                            = "IrisRunner"
 		IrisConfigurationProviderBootPrepares = "IrisConfigurationProviderBootPrepares"
 )
 
 func irisHttpServerNew() {
 		irisApp = new(irisHttpServer)
-		irisApp.Server = iris.New()
+		irisApp.irisServer = iris.New()
 		irisApp.Name = IrisHttpServerClass
 }
 
@@ -82,16 +92,26 @@ func (this *irisHttpServer) registerAfter() {
 				for _, fn := range arr {
 						fn(this.app)
 				}
+				return
 		}
 		if fn, ok := registerAfters.(func(Contracts.ApplicationContainer)); ok {
 				fn(this.app)
+				return
 		}
+		if fn, ok := registerAfters.(func(provider IrisHttpServerProvider)); ok {
+				fn(this)
+				return
+		}
+}
+
+func (this *irisHttpServer) Server() *iris.Application {
+		return this.GetServer()
 }
 
 // 配置注入
 func (this *irisHttpServer) getIrisAppInstance(app Contracts.ApplicationContainer) interface{} {
 		this.Init(app)
-		this.Server.Configure(this.getIrisConfigure())
+		this.Server().Configure(this.getIrisConfigure())
 		return this.Server
 }
 
@@ -99,13 +119,20 @@ func (this *irisHttpServer) getIrisConfigure() iris.Configurator {
 		return iris.WithConfiguration(this.configure())
 }
 
+// 获取iris配置
 func (this *irisHttpServer) configure() iris.Configuration {
 		provider := this.app.Get(IrisConfigurationProvider)
 		if provider != nil {
 				if cfn, ok := provider.(IrisConfigureGetter); ok {
 						return cfn()
 				}
+				if cfn, ok := provider.(func() iris.Configuration); ok {
+						return cfn()
+				}
 				if loader, ok := provider.(IrisConfigureLoader); ok {
+						return loader(this.app)
+				}
+				if loader, ok := provider.(func(app Contracts.ApplicationContainer) iris.Configuration); ok {
 						return loader(this.app)
 				}
 				if pro, ok := provider.(IrisConfigureProviderInterface); ok {
@@ -123,9 +150,9 @@ func (this *irisHttpServer) configure() iris.Configuration {
 
 // 由服务提供注入
 func (this *irisHttpServer) config() iris.Configuration {
-		var cnf = iris.Configuration{}
+		var cnf = iris.DefaultConfiguration()
 		// 注入失败返回默认配置
-		if !this.getConfigureProvider().Inject("http.iris", &cnf, "json", "toml", "yml") {
+		if !this.getConfigureProvider().Inject(IrisConfigPrefixKey, &cnf, defaultInjectTags...) {
 				return iris.DefaultConfiguration()
 		}
 		return cnf
@@ -149,7 +176,7 @@ func (this *irisHttpServer) Boot() {
 // boot 启动前置
 func (this *irisHttpServer) prepare() {
 		// 注入配置
-		this.Server.Configure(this.getIrisConfigure())
+		this.Server().Configure(this.getIrisConfigure())
 		// 获取前置 逻辑
 		bootPrepares := this.app.Get(IrisConfigurationProviderBootPrepares)
 		if bootPrepares == nil {
@@ -178,8 +205,7 @@ func (this *irisHttpServer) StartUp() {
 
 // 启动服务
 func (this *irisHttpServer) run() {
-
-		err := this.Server.Run(this.getServerRunner())
+		err := this.Server().Run(this.getServerRunner())
 		this.logger(err)
 		if err != nil {
 				this.app.Stop()
@@ -192,35 +218,64 @@ func (this *irisHttpServer) logger(stringer interface{}) {
 				return
 		}
 		if str, ok := stringer.(string); ok {
-				this.Server.Logger().Println(str)
+				this.Server().Logger().Println(str)
 		}
 		if str, ok := stringer.([]interface{}); ok {
-				this.Server.Logger().Println(str...)
+				this.Server().Logger().Println(str...)
 		}
 		if str, ok := stringer.([]string); ok {
-				this.Server.Logger().Println(strings.Join(str, " "))
+				this.Server().Logger().Println(strings.Join(str, " "))
 		}
 		if str, ok := stringer.(fmt.Stringer); ok {
-				this.Server.Logger().Println(str.String())
+				this.Server().Logger().Println(str.String())
 		}
 		if err, ok := stringer.(error); ok {
-				this.Server.Logger().Error(err.Error())
+				this.Server().Logger().Error(err.Error())
 		}
 }
 
 func (this *irisHttpServer) getServerRunner() iris.Runner {
-		// @todo other ways
-		return iris.Addr(this.GetHttpAddr())
+		if this.runner == nil {
+				runner := this.app.Get(IrisRunner)
+				if fn, ok := runner.(iris.Runner); ok {
+						this.runner = fn
+				} else {
+						this.runner = iris.Addr(this.GetHttpAddr(), this.getConfigurator()...)
+				}
+		}
+		return this.runner
+}
+
+// 获取runner host configurator
+func (this *irisHttpServer) getConfigurator() []host.Configurator {
+		items := this.app.Get(IrisRunnerHostConfigurators)
+		if fn, ok := items.(host.Configurator); ok {
+				return []host.Configurator{fn}
+		}
+		if fn, ok := items.(func(*iris.Supervisor)); ok {
+				return []host.Configurator{fn}
+		}
+		if arr, ok := items.([]func(*iris.Supervisor)); ok {
+				var all []host.Configurator
+				for _, it := range arr {
+						all = append(all, it)
+				}
+				return all
+		}
+		if arr, ok := items.([]host.Configurator); ok {
+				return arr
+		}
+		return []host.Configurator{}
 }
 
 func (this *irisHttpServer) GetHttpAddr() string {
-		addr := this.getConfigureProvider().Get("http.addr")
+		addr := this.getConfigureProvider().Get(Contracts.HttpAddrConfig)
 		if addr != "" {
 				return addr
 		}
-		host := this.getConfigureProvider().Get("http.ip")
-		port := this.getConfigureProvider().Get("http.port", "8080")
-		return fmt.Sprintf("%s:%s", host, port)
+		_host := this.getConfigureProvider().Get(Contracts.HttpHostConfig)
+		_port := this.getConfigureProvider().Get(Contracts.HttpPortConfig, Contracts.HttpPortDefault)
+		return fmt.Sprintf("%s:%s", _host, _port)
 }
 
 func (this *irisHttpServer) started() bool {
@@ -262,11 +317,11 @@ func (this *irisHttpServer) Constructor() interface{} {
 }
 
 func (this *irisHttpServer) GetServer() *iris.Application {
-		return this.Server
+		return this.irisServer
 }
 
 func (this *irisHttpServer) Static(requestPath string, systemPath string) interface{} {
-		return this.Server.StaticWeb(requestPath, systemPath)
+		return this.Server().StaticWeb(requestPath, systemPath)
 }
 
 func (this *irisHttpServer) String() string {

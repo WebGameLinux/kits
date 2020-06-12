@@ -2,6 +2,7 @@ package Supports
 
 import (
 		"fmt"
+		"github.com/webGameLinux/kits/Components"
 		"github.com/webGameLinux/kits/Contracts"
 		"reflect"
 		"sync"
@@ -416,7 +417,9 @@ func (this *ApplicationImpl) propertiesInitFactory() {
 // 发送事件
 func (this *ApplicationImpl) Emit(event string, target interface{}) {
 		// @todo
-		fmt.Println(event, target)
+		if Components.Debug() {
+				fmt.Println(event, target)
+		}
 }
 
 // 获取当前register加载的位置
@@ -540,7 +543,7 @@ func (this *ApplicationImpl) StarUp() {
 								return
 						}
 				case <-ticker.C:
-						health := this.Get("health")
+						health := this.Get(Contracts.AppHealth)
 						if fn, ok := health.(func()); ok {
 								fn()
 						}

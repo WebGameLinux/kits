@@ -62,9 +62,25 @@ func (this *Properties) Keys() []string {
 				mapper   = this.GetOptions()
 		)
 		if len(mapper) != 0 {
-				var keys []string
+				var (
+						keys  []string
+						cache = make(map[string]bool)
+				)
+				// 用户自定义参数
 				for key, _ := range mapper {
+						if _, ok := cache[key]; ok {
+								continue
+						}
 						keys = append(keys, key)
+						cache[key] = true
+				}
+				// 默认
+				for _, key := range defaults {
+						if _, ok := cache[key]; ok {
+								continue
+						}
+						keys = append(keys, key)
+						cache[key] = true
 				}
 				return keys
 		}
@@ -234,21 +250,21 @@ func (this *Properties) set(key string, value string) {
 				fallthrough
 		case "appfile":
 				fallthrough
-		case "App.Properties.File":
+		case Contracts.AppPropertiesFile:
 				fallthrough
-		case "App.Properties.files":
+		case Contracts.AppPropertiesFiles:
 				this.appFile = value
 		case "paths":
 				fallthrough
 		case "Paths":
 				fallthrough
-		case "App.Properties.Paths":
+		case Contracts.AppPropertiesPaths:
 				this.paths = strings.SplitN(value, ",", -1)
 		case "reader":
 				fallthrough
 		case "Reader":
 				fallthrough
-		case "App.Properties.Reader":
+		case Contracts.AppPropertiesReader:
 				if this.reader != nil {
 						return
 				}
@@ -365,11 +381,11 @@ func (this *Properties) parse() {
 		for _, arg := range args[1:] {
 				tmp := []rune(arg)
 				if len(arg) < 2 {
-						values = appendOrPop(arg, values, &option, &this.options)
+						values = this.appendOrPop(arg, values, &option)
 						continue
 				}
 				if tmp[0] != '-' {
-						values = appendOrPop(arg, values, &option, &this.options)
+						values = this.appendOrPop(arg, values, &option)
 						continue
 				}
 				val = ""
@@ -385,11 +401,13 @@ func (this *Properties) parse() {
 						if val != "" {
 								k := strings.Replace(arg, "-", "", 2)
 								this.options[k] = map[string]string{arg: val}
+								this.updateCache(k, val)
 						}
 						continue
 				}
 				if val != "" {
 						this.options[opt] = map[string]string{arg: val}
+						this.updateCache(opt, val)
 				} else {
 						option = append(option, map[string]string{opt: arg})
 				}
@@ -399,9 +417,17 @@ func (this *Properties) parse() {
 				for _, it := range option {
 						for k, v := range it {
 								this.options[k] = map[string]string{v: "true"}
+								this.updateCache(k, "true")
 						}
 				}
 		}
+}
+
+func (this *Properties) updateCache(key string, val string) {
+		if this.cache == nil {
+				this.cache = make(map[string]string)
+		}
+		this.cache[key] = val
 }
 
 func (this *Properties) FindOption(k string) (string, []string) {
@@ -432,7 +458,7 @@ func (this *Properties) loaderEnv() {
 }
 
 // 出存
-func appendOrPop(arg string, arr []string, options *[]map[string]string, save *map[string]map[string]string) []string {
+func (this *Properties) appendOrPop(arg string, arr []string, options *[]map[string]string) []string {
 		arr = append(arr, arg)
 		if len(*options) <= 0 {
 				return arr
@@ -447,7 +473,8 @@ func appendOrPop(arg string, arr []string, options *[]map[string]string, save *m
 						break
 				}
 				for key, t := range m {
-						(*save)[key] = map[string]string{t: arr[i]}
+						this.options[key] = map[string]string{t: arr[i]}
+						this.updateCache(key, arr[i])
 				}
 		}
 		if i+1 == count {

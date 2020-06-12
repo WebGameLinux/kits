@@ -331,6 +331,10 @@ func (this *EnvironmentProviderImpl) getEnvMapper(file string) map[string]string
 		if err := loader.Mapper.ReadInConfig(); err != nil {
 				return mapper
 		}
+		debug := BooleanOf(loader.Mapper.GetString(Contracts.AppDebug))
+		if Debug() || debug.ValueOf() {
+				LoggerProviderOf().Debug("environment loader file : " + file)
+		}
 		loader.Foreach(func(k, v interface{}) bool {
 				if key, ok := k.(string); ok {
 						if value, ok := v.(string); ok {
