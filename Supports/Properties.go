@@ -187,9 +187,15 @@ func (this *Properties) Init() {
 
 func (this *Properties) help() {
 		if h, ok := this.GetOptions()["help"]; ok && h != "" {
-				this.commandStop = true
 				this.menu()
+				this.stop()
 		}
+}
+
+func (this *Properties) stop() {
+		this.commandStop = true
+		this.cache[HelpStop] = "true"
+		this.options["cStop"] = map[string]string{"ok": "true"}
 }
 
 func (this *Properties) menu() {
@@ -314,7 +320,7 @@ func (this *Properties) With(key string) string {
 }
 
 func (this *Properties) GetOptions() map[string]string {
-		if this.cache == nil || len(this.cache) == 0 {
+		if this.cache == nil || len(this.cache) != len(this.options) {
 				var mapper = make(map[string]string)
 				for k, m := range this.options {
 						for _, v := range m {
