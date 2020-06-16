@@ -12,6 +12,10 @@ type Mongodb struct {
 		url       string
 }
 
+const (
+		DefaultMongodbUrl = "127.0.0.1:27017"
+)
+
 func NewMog(args ...interface{}) Connector {
 		var m = new(Mongodb)
 		m.init(args...)
@@ -21,7 +25,7 @@ func NewMog(args ...interface{}) Connector {
 
 func (this *Mongodb) defaults() {
 		if this.url == "" {
-				this.url = "127.0.0.1:27017"
+				this.url = DefaultMongodbUrl
 		}
 }
 
