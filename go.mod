@@ -30,6 +30,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.2 // indirect
 	github.com/mitchellh/mapstructure v1.3.2
 	github.com/moul/http2curl v1.0.0 // indirect
+	github.com/nats-io/nats.go v1.10.0 // indirect
 	github.com/prometheus/common v0.10.0
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
