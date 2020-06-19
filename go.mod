@@ -6,6 +6,7 @@ require (
 	github.com/Joker/jade v1.0.0 // indirect
 	github.com/Shopify/goreferrer v0.0.0-20181106222321-ec9c9a553398 // indirect
 	github.com/ajg/form v1.5.1 // indirect
+	github.com/astaxie/beego v1.12.1
 	github.com/aymerick/raymond v2.0.2+incompatible // indirect
 	github.com/coreos/etcd v3.3.22+incompatible
 	github.com/eknkc/amber v0.0.0-20171010120322-cdade1c07385 // indirect
@@ -33,6 +34,7 @@ require (
 	github.com/nats-io/nats.go v1.10.0 // indirect
 	github.com/prometheus/common v0.10.0
 	github.com/sergi/go-diff v1.1.0 // indirect
+	github.com/shiena/ansicolor v0.0.0-20151119151921-a422bbe96644 // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/sirupsen/logrus v1.6.0
 	github.com/smartystreets/goconvey v1.6.4

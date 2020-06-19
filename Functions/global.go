@@ -39,8 +39,9 @@ func Bootstrap(apps ...Contracts.ApplicationContainer) {
 
 // 初始化 provider
 func InitProviders(app Contracts.ApplicationContainer)  {
-		app.Register(Schemas.IrisHttpServerOf())
+		// app.Register(Schemas.IrisHttpServerOf())
 		app.Register(Components.SchemaServiceProviderOf())
+		app.Register(Schemas.BeegoHttpServerOf())
 }
 
 // 初始化引导

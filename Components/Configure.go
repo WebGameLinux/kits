@@ -72,6 +72,7 @@ const (
 		ConfigureAlias         = "configure"
 		ConfigurationAlias     = "Configuration"
 		ConfigureLoaderName    = "ConfigureLoader"
+		TagDefault             = "default"
 		ConfigureProviderClass = "ConfigureProvider"
 )
 
@@ -247,7 +248,7 @@ func (this *ConfigureProviderImpl) Inject(scope string, obj interface{}, tags ..
 func (this *ConfigureProviderImpl) getScopes(root string, keys interface{}) (map[string]interface{}, string) {
 		var (
 				n      int
-				tag    = "default"
+				tag    = TagDefault
 				mapper = make(map[string]interface{})
 		)
 		if keys == nil {

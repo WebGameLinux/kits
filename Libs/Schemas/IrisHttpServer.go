@@ -32,6 +32,7 @@ type IrisConfigureProviderInterface interface {
 
 type IrisHttpServerProvider interface {
 		Server() *iris.Application
+		Contracts.Provider
 }
 
 var (
